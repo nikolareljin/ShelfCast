@@ -1,0 +1,6 @@
+.env
+config/settings.json
+config/system_changes.json
+*.pyc
+__pycache__/
+.venv/

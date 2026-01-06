@@ -1,0 +1,12 @@
+[Unit]
+Description=ShelfCast kiosk
+After=network-online.target
+
+[Service]
+User=pi
+Environment=DISPLAY=:0
+ExecStart=/bin/bash /home/pi/ShelfCast/raspberry-pi/kiosk.sh
+Restart=on-failure
+
+[Install]
+WantedBy=graphical.target

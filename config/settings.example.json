@@ -1,0 +1,40 @@
+{
+  "auth": {
+    "admin_user": "admin",
+    "admin_password": "change-me"
+  },
+  "data": {
+    "data_path": "../data/sample_data.json"
+  },
+  "display": {
+    "show_weather": true,
+    "show_news": true,
+    "show_todos": true,
+    "show_calendar": true,
+    "show_packages": true
+  },
+  "news": {
+    "predefined_sources": [
+      "https://example.com/rss"
+    ],
+    "custom_sources": []
+  },
+  "calendar": {
+    "google": {
+      "enabled": false,
+      "client_id": "",
+      "client_secret": "",
+      "device_code": "",
+      "refresh_token": ""
+    }
+  },
+  "system": {
+    "static_ip": {
+      "enabled": false,
+      "iface": "eth0",
+      "address": "",
+      "router": "",
+      "dns": ""
+    }
+  }
+}

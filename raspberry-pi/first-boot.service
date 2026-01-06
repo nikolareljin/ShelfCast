@@ -1,0 +1,12 @@
+[Unit]
+Description=ShelfCast first boot provisioning
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/ShelfCast/raspberry-pi/first-boot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

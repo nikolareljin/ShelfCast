@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShelfCast Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <header>
+      <h1>Settings</h1>
+      <nav>
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      </nav>
+    </header>
+
+    <main class="settings">
+      <form method="post">
+        <section>
+          <h2>Admin</h2>
+          <label>
+            Admin username
+            <input type="text" name="admin_user" value="{{ settings.auth.admin_user }}" required />
+          </label>
+          <label>
+            New password
+            <input type="password" name="admin_password" placeholder="Leave blank to keep" />
+          </label>
+        </section>
+
+        <section>
+          <h2>Display modules</h2>
+          <label><input type="checkbox" name="show_weather" {% if settings.display.show_weather %}checked{% endif %} /> Weather</label>
+          <label><input type="checkbox" name="show_news" {% if settings.display.show_news %}checked{% endif %} /> News</label>
+          <label><input type="checkbox" name="show_todos" {% if settings.display.show_todos %}checked{% endif %} /> Todos</label>
+          <label><input type="checkbox" name="show_calendar" {% if settings.display.show_calendar %}checked{% endif %} /> Calendar</label>
+          <label><input type="checkbox" name="show_packages" {% if settings.display.show_packages %}checked{% endif %} /> Packages</label>
+        </section>
+
+        <section>
+          <h2>Data</h2>
+          <label>
+            Data file path
+            <input type="text" name="data_path" value="{{ settings.data.data_path }}" />
+          </label>
+        </section>
+
+        <section>
+          <h2>News sources</h2>
+          <label>
+            Predefined RSS feeds (one per line)
+            <textarea name="news_predefined_sources" rows="4">{% for source in settings.news.predefined_sources %}{{ source }}
+{% endfor %}</textarea>
+          </label>
+          <label>
+            Custom RSS feeds (one per line)
+            <textarea name="news_custom_sources" rows="4">{% for source in settings.news.custom_sources %}{{ source }}
+{% endfor %}</textarea>
+          </label>
+        </section>
+
+        <section>
+          <h2>Google Calendar</h2>
+          <p class="note">Use OAuth device flow to obtain device code and refresh token.</p>
+          <label><input type="checkbox" name="google_enabled" {% if settings.calendar.google.enabled %}checked{% endif %} /> Enable Google Calendar</label>
+          <label>
+            Client ID
+            <input type="text" name="google_client_id" value="{{ settings.calendar.google.client_id }}" />
+          </label>
+          <label>
+            Client secret
+            <input type="text" name="google_client_secret" value="{{ settings.calendar.google.client_secret }}" />
+          </label>
+          <label>
+            Device code
+            <input type="text" name="google_device_code" value="{{ settings.calendar.google.device_code }}" />
+          </label>
+          <label>
+            Refresh token
+            <input type="text" name="google_refresh_token" value="{{ settings.calendar.google.refresh_token }}" />
+          </label>
+        </section>
+
+        <section>
+          <h2>Static IP (pending)</h2>
+          <p class="note">Changes are saved to disk. Apply with the system script. Default interface is eth0; use wlan0 for Nook Wi-Fi.</p>
+          <label><input type="checkbox" name="static_ip_enabled" {% if settings.system.static_ip.enabled %}checked{% endif %} /> Enable static IP</label>
+          <label>
+            Interface
+            <input type="text" name="static_ip_iface" value="{{ settings.system.static_ip.iface }}" />
+          </label>
+          <label>
+            IP address (CIDR)
+            <input type="text" name="static_ip_address" value="{{ settings.system.static_ip.address }}" placeholder="192.168.1.50/24" />
+          </label>
+          <label>
+            Router
+            <input type="text" name="static_ip_router" value="{{ settings.system.static_ip.router }}" placeholder="192.168.1.1" />
+          </label>
+          <label>
+            DNS
+            <input type="text" name="static_ip_dns" value="{{ settings.system.static_ip.dns }}" placeholder="1.1.1.1 8.8.8.8" />
+          </label>
+        </section>
+
+        <button type="submit">Save settings</button>
+      </form>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShelfCast</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="ip-badge">Pi IP: <span>{{ ip_address }}</span></div>
+    <header>
+      <h1>ShelfCast</h1>
+      <nav>
+        <a href="{{ url_for('settings') }}">Settings</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      </nav>
+    </header>
+
+    <main class="grid">
+      {% if display.show_weather %}
+      <section>
+        <h2>Weather</h2>
+        <p>{{ data.weather.summary }}</p>
+        <p>High {{ data.weather.high_c }}°C / Low {{ data.weather.low_c }}°C</p>
+      </section>
+      {% endif %}
+
+      {% if display.show_news %}
+      <section>
+        <h2>News</h2>
+        <ul>
+          {% for item in data.news %}
+          <li>{{ item.title }} - {{ item.source }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if display.show_todos %}
+      <section>
+        <h2>Todos</h2>
+        <ul>
+          {% for item in data.todos %}
+          <li>{{ item.title }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if display.show_calendar %}
+      <section>
+        <h2>Calendar</h2>
+        <ul>
+          {% for item in data.calendar %}
+          <li>{{ item.title }} - {{ item.time }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if display.show_packages %}
+      <section>
+        <h2>Packages</h2>
+        <ul>
+          {% for item in data.packages %}
+          <li>{{ item.carrier }} - {{ item.status }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

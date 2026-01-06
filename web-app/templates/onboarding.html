@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShelfCast Onboarding</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="ip-badge">Pi IP: <span>{{ ip_address }}</span></div>
+    <header>
+      <h1>Get ShelfCast Online</h1>
+      <nav>
+        <a href="{{ url_for('login') }}">Login</a>
+      </nav>
+    </header>
+
+    <main class="onboarding">
+      <section>
+        <h2>1. Connect a display device</h2>
+        <p>Use a Nook Simple Touch (Android 2) or an Android 4+ tablet/phone.</p>
+        <p>On the device, open a browser to <strong>http://{{ ip_address }}:8080</strong>.</p>
+      </section>
+
+      <section>
+        <h2>2. Android provisioning (optional, via USB)</h2>
+        <p>
+          Connect the Android device to the Pi with USB and enable USB debugging.
+          Then run:
+        </p>
+        <pre><code>./scripts/android-provision.sh</code></pre>
+        <p>
+          Place any APKs you want auto-installed in
+          <code>config/android/apks/</code> before running the script.
+        </p>
+      </section>
+
+      <section>
+        <h2>3. Finish setup in the web UI</h2>
+        <p>
+          From another computer, visit <strong>http://{{ ip_address }}:8080</strong>,
+          log in, and open Settings to fine-tune sources and system changes.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

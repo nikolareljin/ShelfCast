@@ -1,0 +1,14 @@
+name: ci
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  python:
+    uses: nikolareljin/ci-helpers/.github/workflows/python.yml@production
+    with:
+      working_directory: web-app
+      lint_command: "python -m pip install -r requirements.txt && python -m pip install ruff && ruff check ."
+      test_command: "echo 'No tests yet'"

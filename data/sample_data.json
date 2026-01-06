@@ -1,0 +1,19 @@
+{
+  "weather": {
+    "summary": "Partly cloudy",
+    "high_c": 21,
+    "low_c": 12
+  },
+  "news": [
+    {"title": "Local headlines placeholder", "source": "Example News"}
+  ],
+  "todos": [
+    {"title": "Add real todo source", "done": false}
+  ],
+  "calendar": [
+    {"title": "Sample event", "time": "2025-01-01T09:00:00"}
+  ],
+  "packages": [
+    {"carrier": "Example Carrier", "status": "Label created"}
+  ]
+}
