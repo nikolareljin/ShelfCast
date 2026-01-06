@@ -1,9 +1,11 @@
 name: ci
 
 on:
+  pull_request:
+    branches: [ main, master ]
+    types: [opened, synchronize, reopened]
   push:
     branches: [ main, master ]
-  pull_request:
 
 jobs:
   python:
