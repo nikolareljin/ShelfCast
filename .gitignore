@@ -1,6 +1,110 @@
+# ===================================
+# Environment & Secrets
+# ===================================
 .env
+.env.local
+.env.*.local
+*.env
+
+# ===================================
+# Config files (generated from examples)
+# ===================================
 config/settings.json
 config/system_changes.json
+
+# APKs for provisioning (binary artifacts)
+config/android/apks/
+
+# ===================================
+# Python
+# ===================================
 *.pyc
+*.pyo
+*.pyd
 __pycache__/
 .venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ===================================
+# Android / Gradle
+# ===================================
+# Build outputs
+nook-app/.gradle/
+nook-app/build/
+nook-app/app/build/
+nook-app/*/build/
+
+# Local configuration
+nook-app/local.properties
+
+# Generated files
+*.apk
+*.aab
+*.dex
+*.class
+
+# Android Studio / IntelliJ
+nook-app/.idea/
+nook-app/*.iml
+nook-app/captures/
+nook-app/.externalNativeBuild/
+
+# ===================================
+# IDE & Editors
+# ===================================
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ===================================
+# OS Generated
+# ===================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===================================
+# Logs & Runtime
+# ===================================
+*.log
+logs/
+*.pid
+*.seed
+
+# ===================================
+# Build artifacts
+# ===================================
+dist/
+out/
+target/
+*.egg-info/
+
+# ===================================
+# Test & Coverage
+# ===================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+coverage.xml
+
+# ===================================
+# Screenshots (generated on Pi)
+# ===================================
+screenshots/

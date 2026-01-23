@@ -1,0 +1,24 @@
+// Top-level build file for ShelfCast Nook App
+// Targets Android 2.1 (API 7) for Nook Simple Touch compatibility
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Using older Gradle plugin for API 7 compatibility
+        classpath 'com.android.tools.build:gradle:4.2.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

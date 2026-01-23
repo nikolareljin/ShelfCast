@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ShelfCast</string>
+    <string name="connection_error">Cannot connect to ShelfCast server</string>
+    <string name="retry_message">Retrying in 10 seconds...</string>
+</resources>

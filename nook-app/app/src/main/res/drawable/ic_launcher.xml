@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple launcher icon for ShelfCast Nook app -->
+<!-- Note: Android 2.1 has limited vector support, using basic shape -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#1b1b1b" />
+    <corners android:radius="8dp" />
+</shape>
