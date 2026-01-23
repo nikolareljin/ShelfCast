@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${1:-}"
-if [[ -z "$repo_url" ]]; then
-  echo "Usage: $0 <git-repo-url>"
+repo_source="${1:-}"
+if [[ -z "$repo_source" ]]; then
+  echo "Usage: $0 <git-repo-url-or-local-path>"
   exit 1
 fi
 
@@ -12,7 +12,11 @@ sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip chromium-browser xserver-xorg x11-xserver-utils xinit android-tools-adb
 
 if [[ ! -d /home/pi/ShelfCast ]]; then
-  git clone "$repo_url" /home/pi/ShelfCast
+  if [[ -d "$repo_source/.git" || -d "$repo_source/web-app" ]]; then
+    cp -R "$repo_source" /home/pi/ShelfCast
+  else
+    git clone "$repo_source" /home/pi/ShelfCast
+  fi
 fi
 
 cd /home/pi/ShelfCast
