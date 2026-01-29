@@ -2,20 +2,14 @@ name: ci
 
 on:
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, "release/*" ]
     types: [opened, synchronize, reopened]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
       - "LICENSE"
       - ".gitignore"
-  push:
-    branches: [ main, master ]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
