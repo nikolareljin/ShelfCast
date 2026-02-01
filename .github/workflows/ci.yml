@@ -2,10 +2,18 @@ name: ci
 
 on:
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, "release/*" ]
     types: [opened, synchronize, reopened]
-  push:
-    branches: [ main, master ]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   python:
