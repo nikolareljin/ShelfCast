@@ -2,22 +2,44 @@
 
 ## Project Structure & Module Organization
 - `web-app/` Flask dashboard app (`app.py`), HTML templates, and static assets.
-- `raspberry-pi/` kiosk and systemd service scripts for Pi setup.
-- `scripts/` automation helpers (provisioning, local run).
+- `nook-app/` Android application for Nook Simple Touch (API 7, Java).
+- `raspberry-pi/` kiosk, systemd services, and Pi setup scripts.
+- `scripts/` automation helpers (provisioning, deployment, local run).
+- `dev-setup/` Ubuntu development environment setup scripts.
 - `docs/` step-by-step setup and operating guides.
 - `config/` example configuration files (`env.example`, `settings.example.json`).
 - `ubuntu-test/` local, non-Pi test harness for the web app.
+- `macos-test/` local macOS test harness.
 
 ## Build, Test, and Development Commands
+
+### Initial Setup (Ubuntu)
+- `./dev-setup/install-prerequisites.sh` installs system packages (Python, Java, ADB).
+- `./dev-setup/install-android-sdk.sh` installs Android SDK with API 7 for Nook.
 - `git submodule update --init --recursive` initializes `vendor/script-helpers` required by scripts.
-- `./scripts/run-web.sh` creates a venv, installs Python deps, seeds `config/settings.json`, and starts the web app.
-- `cd ubuntu-test && ./setup.sh` prepares a local Ubuntu test environment.
-- `cd ubuntu-test && ./run.sh` runs the web app against the Ubuntu test setup.
+
+### Web App (Server)
+- `./scripts/run-web.sh` creates venv, installs Python deps, seeds config, and starts the web app.
+- `cd ubuntu-test && ./setup.sh && ./run.sh` runs the web app locally on Ubuntu.
+
+### Nook App (Android APK)
+- `cd nook-app && ./gradlew assembleRelease` builds release APK for Nook Simple Touch.
+- `cd nook-app && ./gradlew assembleDebug` builds debug APK.
+- APK output: `nook-app/app/build/outputs/apk/release/app-release.apk`
+
+### Deployment to Raspberry Pi
+- `./scripts/deploy-to-pi.sh` syncs code to Pi via SSH.
+- `./scripts/deploy-to-pi.sh --restart` syncs and restarts the service.
+- `./scripts/deploy-apk-to-pi.sh` builds APK, copies to Pi, installs on Nook.
+- `./scripts/pi-shell.sh` opens SSH session to Pi.
+- `./scripts/pi-shell.sh "command"` runs a command on Pi.
 
 ## Coding Style & Naming Conventions
 - Python code lives in `web-app/`. Follow standard PEP 8 style: 4-space indentation, snake_case for variables/functions, and CapWords for classes.
+- Java code lives in `nook-app/`. Follow Android conventions: 4-space indentation, camelCase for methods/variables, PascalCase for classes.
 - HTML templates live in `web-app/templates/`; keep template names short and descriptive (e.g., `index.html`, `settings.html`).
 - Static assets live in `web-app/static/`; keep filenames kebab-case (e.g., `theme-dark.css`).
+- Shell scripts use `bash` with `set -euo pipefail` for safety.
 
 ## Testing Guidelines
 - There is no automated test suite in this repo.

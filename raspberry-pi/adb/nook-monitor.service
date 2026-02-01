@@ -1,0 +1,25 @@
+[Unit]
+Description=ShelfCast Nook Connection Monitor
+After=network.target shelfcast.service
+Wants=shelfcast.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/ShelfCast/raspberry-pi/adb
+ExecStart=/home/pi/ShelfCast/raspberry-pi/adb/monitor.sh start
+Restart=always
+RestartSec=10
+
+# Environment
+Environment="CHECK_INTERVAL=5"
+Environment="AUTO_DASHBOARD=true"
+Environment="AUTO_REFRESH_INTERVAL=300"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
