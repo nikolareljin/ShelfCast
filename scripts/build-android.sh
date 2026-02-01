@@ -46,17 +46,25 @@ ensure_gradle() {
   local zip_name="gradle-${desired_gradle_version}-bin.zip"
   local zip_path="$root_dir/tools/$zip_name"
   local zip_url="https://services.gradle.org/distributions/$zip_name"
-  log_info "Downloading Gradle $desired_gradle_version..."
+  log_info "Downloading Gradle $desired_gradle_version..." >&2
   curl -fsSL "$zip_url" -o "$zip_path"
   if command -v unzip >/dev/null 2>&1; then
     unzip -q "$zip_path" -d "$root_dir/tools"
   else
-    python3 -m zipfile -e "$zip_path" "$root_dir/tools"
+    python3 - "$zip_path" "$root_dir/tools" <<'PY'
+import zipfile
+import sys
+zip_path = sys.argv[1]
+dest = sys.argv[2]
+with zipfile.ZipFile(zip_path) as zf:
+    zf.extractall(dest)
+PY
   fi
   if [[ -x "$gradle_bin" ]]; then
     echo "$gradle_bin"
     return 0
   fi
+  log_error "Failed to install Gradle $desired_gradle_version in $gradle_dir." >&2
   return 1
 }
 
@@ -69,10 +77,14 @@ else
     if [[ -n "$current_version" ]] && version_ge "$current_version" "$desired_gradle_version"; then
       gradle_cmd="gradle"
     else
-      gradle_cmd="$(ensure_gradle || true)"
+      if ! gradle_cmd="$(ensure_gradle)"; then
+        gradle_cmd=""
+      fi
     fi
   else
-    gradle_cmd="$(ensure_gradle || true)"
+    if ! gradle_cmd="$(ensure_gradle)"; then
+      gradle_cmd=""
+    fi
   fi
 fi
 
