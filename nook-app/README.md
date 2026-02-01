@@ -53,6 +53,9 @@ See `../docs/dev-prerequisites.md` for complete Ubuntu setup.
 cd ../dev-setup
 ./install-android-sdk.sh
 
+# Ensure Java 11 is installed (Gradle 6.7.1 requires it)
+sudo apt-get install -y openjdk-11-jdk
+
 # Build the APK
 cd ../nook-app
 ../scripts/build-android.sh

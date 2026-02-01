@@ -94,6 +94,31 @@ if [[ -z "$gradle_cmd" ]]; then
   exit 0
 fi
 
+java_major() {
+  java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print ($1=="1")?$2:$1}'
+}
+
+pick_java_home() {
+  local major
+  major="$(java_major)"
+  if [[ -n "$major" && "$major" -le 11 ]]; then
+    return 0
+  fi
+  local cand
+  for cand in /usr/lib/jvm/java-11-* /usr/lib/jvm/jdk-11* /usr/lib/jvm/java-8-* /usr/lib/jvm/jdk1.8*; do
+    if [[ -x "$cand/bin/java" ]]; then
+      export JAVA_HOME="$cand"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      log_info "Using JAVA_HOME=$JAVA_HOME"
+      return 0
+    fi
+  done
+  log_error "Java 11 (or 8) is required for Gradle $desired_gradle_version. Install openjdk-11-jdk and retry."
+  return 1
+}
+
+pick_java_home || exit 1
+
 log_info "Building Android APK (release)"
 (cd "$nook_dir" && "$gradle_cmd" assembleRelease)
 
