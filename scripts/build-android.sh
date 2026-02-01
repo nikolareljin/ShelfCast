@@ -24,11 +24,56 @@ if [[ ! -d "$nook_dir" ]]; then
   exit 0
 fi
 
+desired_gradle_version="6.7.1"
+gradle_dir="$root_dir/tools/gradle-$desired_gradle_version"
+gradle_bin="$gradle_dir/bin/gradle"
+
+version_ge() {
+  local a="$1" b="$2"
+  [[ "$(printf '%s\n' "$b" "$a" | sort -V | head -n1)" == "$b" ]]
+}
+
+gradle_version() {
+  "$1" -v 2>/dev/null | awk '/^Gradle /{print $2; exit}'
+}
+
+ensure_gradle() {
+  if [[ -x "$gradle_bin" ]]; then
+    echo "$gradle_bin"
+    return 0
+  fi
+  mkdir -p "$root_dir/tools"
+  local zip_name="gradle-${desired_gradle_version}-bin.zip"
+  local zip_path="$root_dir/tools/$zip_name"
+  local zip_url="https://services.gradle.org/distributions/$zip_name"
+  log_info "Downloading Gradle $desired_gradle_version..."
+  curl -fsSL "$zip_url" -o "$zip_path"
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$zip_path" -d "$root_dir/tools"
+  else
+    python3 -m zipfile -e "$zip_path" "$root_dir/tools"
+  fi
+  if [[ -x "$gradle_bin" ]]; then
+    echo "$gradle_bin"
+    return 0
+  fi
+  return 1
+}
+
 gradle_cmd=""
 if [[ -x "$nook_dir/gradlew" ]]; then
   gradle_cmd="$nook_dir/gradlew"
-elif command -v gradle >/dev/null 2>&1; then
-  gradle_cmd="gradle"
+else
+  if command -v gradle >/dev/null 2>&1; then
+    current_version="$(gradle_version gradle)"
+    if [[ -n "$current_version" ]] && version_ge "$current_version" "$desired_gradle_version"; then
+      gradle_cmd="gradle"
+    else
+      gradle_cmd="$(ensure_gradle || true)"
+    fi
+  else
+    gradle_cmd="$(ensure_gradle || true)"
+  fi
 fi
 
 if [[ -z "$gradle_cmd" ]]; then

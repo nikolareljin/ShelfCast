@@ -55,7 +55,7 @@ cd ../dev-setup
 
 # Build the APK
 cd ../nook-app
-./gradlew assembleRelease
+../scripts/build-android.sh
 
 # APK will be at: app/build/outputs/apk/release/app-release.apk
 ```
