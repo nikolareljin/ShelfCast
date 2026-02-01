@@ -71,8 +71,7 @@ public class MainActivity extends Activity {
         settings.setAppCacheEnabled(true);
         settings.setDomStorageEnabled(true);
 
-        // Disable animations for e-ink
-        settings.setPluginsEnabled(false);
+        // Disable plugins for e-ink (API 7 no-op; method removed on newer SDKs)
 
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setBackgroundColor(0xFFFFFFFF);
