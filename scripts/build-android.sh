@@ -119,19 +119,27 @@ pick_java_home() {
 
 pick_java_home || exit 1
 
-log_info "Building Android APK (release)"
-(cd "$nook_dir" && "$gradle_cmd" assembleRelease)
+build_variant="${BUILD_VARIANT:-debug}"
+gradle_task="assembleRelease"
+if [[ "$build_variant" == "debug" ]]; then
+  gradle_task="assembleDebug"
+fi
 
-apk_path="$nook_dir/app/build/outputs/apk/release/app-release.apk"
-if [[ ! -f "$apk_path" ]]; then
+log_info "Building Android APK (${build_variant})"
+(cd "$nook_dir" && "$gradle_cmd" "$gradle_task")
+
+apk_path="$nook_dir/app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
+if [[ "$build_variant" == "release" && ! -f "$apk_path" ]]; then
   unsigned_path="$nook_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
   if [[ -f "$unsigned_path" ]]; then
-    log_warn "Release APK is unsigned; using: $unsigned_path"
-    apk_path="$unsigned_path"
-  else
-    log_error "APK not found at expected path: $apk_path"
-    exit 1
+    log_warn "Release APK is unsigned; falling back to debug APK."
+    build_variant="debug"
+    apk_path="$nook_dir/app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
   fi
+fi
+if [[ ! -f "$apk_path" ]]; then
+  log_error "APK not found at expected path: $apk_path"
+  exit 1
 fi
 
 dest_apk="$apk_dir/shelfcast-nook.apk"

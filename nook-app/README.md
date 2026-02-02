@@ -56,9 +56,12 @@ cd ../dev-setup
 # Ensure Java 11 is installed (Gradle 6.7.1 requires it)
 sudo apt-get install -y openjdk-11-jdk
 
-# Build the APK
+# Build the APK (debug by default for device installs)
 cd ../nook-app
 ../scripts/build-android.sh
+
+# For release builds:
+# BUILD_VARIANT=release ../scripts/build-android.sh
 
 # APK will be at: app/build/outputs/apk/release/app-release.apk
 ```
