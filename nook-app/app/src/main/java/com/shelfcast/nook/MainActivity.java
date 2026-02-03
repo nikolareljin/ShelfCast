@@ -109,8 +109,21 @@ public class MainActivity extends Activity {
     }
 
     private String getServerUrl() {
-        // Check for custom server URL in preferences
-        // Default to localhost (ADB reverse forwarding)
+        android.content.Intent intent = getIntent();
+        if (intent != null) {
+            android.net.Uri data = intent.getData();
+            if (data != null) {
+                String override = data.toString();
+                if (override.startsWith("http://") || override.startsWith("https://")) {
+                    return override;
+                }
+            }
+            String extra = intent.getStringExtra("SHELFCAST_URL");
+            if (extra != null && (extra.startsWith("http://") || extra.startsWith("https://"))) {
+                return extra;
+            }
+        }
+        // Default to localhost (expects port forwarding when available)
         return DEFAULT_SERVER_URL;
     }
 
