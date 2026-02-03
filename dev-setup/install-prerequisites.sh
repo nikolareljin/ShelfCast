@@ -41,7 +41,8 @@ sudo apt install -y \
     python3-pip \
     python3-venv
 
-log_info "Installing Java 11 (required for Android SDK)..."
+log_info "Installing Java 8/11 (required for legacy Android builds)..."
+sudo apt install -y openjdk-8-jdk || log_warn "openjdk-8-jdk not available; install manually if build fails."
 sudo apt install -y openjdk-11-jdk
 
 log_info "Installing ADB..."

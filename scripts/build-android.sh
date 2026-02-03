@@ -40,7 +40,7 @@ fi
 
 log_info "Building Android APK (release)"
 ( 
-  # Ensure we use a compatible Java version for Android Gradle Plugin 4.2.2.
+  # Ensure we use a compatible Java version for legacy Android Gradle Plugin.
   java_major() {
     local version
     version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
@@ -48,9 +48,9 @@ log_info "Building Android APK (release)"
     echo "${version%%.*}"
   }
 
-  find_java_11() {
+  find_java_8() {
     local candidate
-    for candidate in /usr/lib/jvm/java-11-openjdk-* /usr/lib/jvm/java-11*; do
+    for candidate in /usr/lib/jvm/java-8-openjdk-* /usr/lib/jvm/java-8*; do
       if [[ -x "$candidate/bin/java" ]]; then
         echo "$candidate"
         return 0
@@ -68,9 +68,9 @@ log_info "Building Android APK (release)"
   current_major=""
   if [[ -n "$current_java" ]]; then
     current_major="$(java_major "$current_java")"
-    if [[ "$current_major" -ge 17 ]]; then
-      if java11_home="$(find_java_11)"; then
-        export JAVA_HOME="$java11_home"
+    if [[ "$current_major" -ge 9 ]]; then
+      if java8_home="$(find_java_8)"; then
+        export JAVA_HOME="$java8_home"
         export PATH="$JAVA_HOME/bin:$PATH"
         log_warn "Using JAVA_HOME=$JAVA_HOME for Gradle (Java $current_major is too new)."
       fi
@@ -79,8 +79,8 @@ log_info "Building Android APK (release)"
 
   if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
     current_major="$(java_major "$JAVA_HOME/bin/java")"
-    if [[ "$current_major" -ge 17 ]]; then
-      log_error "Java $current_major is not supported by the Android Gradle Plugin. Use Java 8-11."
+    if [[ "$current_major" -ge 9 ]]; then
+      log_error "Java $current_major is not supported by the legacy Android Gradle Plugin. Use Java 8."
       exit 1
     fi
   fi

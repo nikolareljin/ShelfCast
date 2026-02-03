@@ -7,8 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Using older Gradle plugin for API 7 compatibility
-        classpath 'com.android.tools.build:gradle:4.2.2'
+        // Use legacy Android Gradle Plugin for Android 2.1 compatibility (no aapt2)
+        classpath 'com.android.tools.build:gradle:2.3.3'
     }
 }
 

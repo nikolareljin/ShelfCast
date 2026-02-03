@@ -21,7 +21,7 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# Prefer Java 11 for Android tooling.
+# Prefer Java 8 for legacy Android tooling.
 java_major() {
     local version
     version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
@@ -29,9 +29,9 @@ java_major() {
     echo "${version%%.*}"
 }
 
-find_java_11() {
+find_java_8() {
     local candidate
-    for candidate in /usr/lib/jvm/java-11-openjdk-* /usr/lib/jvm/java-11*; do
+    for candidate in /usr/lib/jvm/java-8-openjdk-* /usr/lib/jvm/java-8*; do
         if [[ -x "$candidate/bin/java" ]]; then
             echo "$candidate"
             return 0
@@ -44,9 +44,9 @@ if [[ -z "${JAVA_HOME:-}" ]]; then
     current_java="$(command -v java || true)"
     if [[ -n "$current_java" ]]; then
         current_major="$(java_major "$current_java")"
-        if [[ "$current_major" -ge 17 ]]; then
-            if java11_home="$(find_java_11)"; then
-                export JAVA_HOME="$java11_home"
+        if [[ "$current_major" -ge 9 ]]; then
+            if java8_home="$(find_java_8)"; then
+                export JAVA_HOME="$java8_home"
                 export PATH="$JAVA_HOME/bin:$PATH"
                 log_warn "Using JAVA_HOME=$JAVA_HOME (Java $current_major is too new for Android builds)."
             fi
@@ -101,9 +101,9 @@ log_info "Installing SDK packages (this may take a while)..."
 
 PACKAGES=(
     "platform-tools"
-    "platforms;android-28"    # For compilation (newer tooling)
+    "platforms;android-25"    # For compilation (legacy tooling)
     "platforms;android-7"     # API 7 for Nook Simple Touch
-    "build-tools;28.0.3"
+    "build-tools;25.0.3"
 )
 
 for package in "${PACKAGES[@]}"; do
