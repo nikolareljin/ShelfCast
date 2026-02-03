@@ -24,9 +24,9 @@ ensure_java_11() {
     echo "${version%%.*}"
   }
 
-  find_java_8() {
+  find_java_11() {
     local candidate
-    for candidate in /usr/lib/jvm/java-8-openjdk-* /usr/lib/jvm/java-8*; do
+    for candidate in /usr/lib/jvm/java-11-openjdk-* /usr/lib/jvm/java-11*; do
       if [[ -x "$candidate/bin/java" ]]; then
         echo "$candidate"
         return 0
@@ -45,14 +45,14 @@ ensure_java_11() {
   if [[ -n "$current_java" ]]; then
     local current_major
     current_major="$(java_major "$current_java")"
-    if [[ "$current_major" -ge 9 ]]; then
-      local java8_home
-      if java8_home="$(find_java_8)"; then
-        export JAVA_HOME="$java8_home"
+    if [[ "$current_major" -ge 17 ]]; then
+      local java11_home
+      if java11_home="$(find_java_11)"; then
+        export JAVA_HOME="$java11_home"
         export PATH="$JAVA_HOME/bin:$PATH"
         log_warn "Using JAVA_HOME=$JAVA_HOME (Java $current_major is too new for Android builds)."
       else
-        log_warn "Java $current_major detected. Install Java 8 for Android builds."
+        log_warn "Java $current_major detected. Install Java 11 for Android builds."
       fi
     fi
   fi

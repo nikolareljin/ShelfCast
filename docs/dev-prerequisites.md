@@ -103,7 +103,7 @@ cd ../nook-app
 # Gradle 6.7.1 - 7.0.2 (Android Gradle Plugin 4.2.2)
 ```
 
-Ensure you are using Java 8 for the Android build (newer JDKs are not supported by the legacy Android Gradle Plugin used for API 7).
+Ensure you are using Java 8-11 for the Android build (newer JDKs are not supported by the Android Gradle Plugin version used here).
 
 ## 4. ADB Setup
 
