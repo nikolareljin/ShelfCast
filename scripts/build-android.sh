@@ -85,17 +85,26 @@ log_info "Building Android APK (release)"
     fi
   fi
 
-(cd "$nook_dir" && "$gradle_cmd" assembleRelease)
+(cd "$nook_dir" && "$gradle_cmd" assembleRelease assembleDebug)
 )
 
 apk_path="$nook_dir/app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$apk_path" ]]; then
   unsigned_path="$nook_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
+  debug_path="$nook_dir/app/build/outputs/apk/debug/app-debug.apk"
   if [[ -f "$unsigned_path" ]]; then
-    apk_path="$unsigned_path"
-    log_warn "Release APK is unsigned; using $apk_path"
+    if [[ -f "$debug_path" ]]; then
+      apk_path="$debug_path"
+      log_warn "Release APK is unsigned; using debug APK for install: $apk_path"
+    else
+      log_error "Release APK is unsigned and debug APK is missing."
+      exit 1
+    fi
+  elif [[ -f "$debug_path" ]]; then
+    apk_path="$debug_path"
+    log_warn "Release APK missing; using debug APK for install: $apk_path"
   else
-    log_error "APK not found at expected path: $apk_path"
+    log_error "APK not found at expected paths: $apk_path or $debug_path"
     exit 1
   fi
 fi
