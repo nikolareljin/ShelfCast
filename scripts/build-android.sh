@@ -29,6 +29,7 @@ if [[ -x "$nook_dir/gradlew" ]]; then
   gradle_cmd="$nook_dir/gradlew"
 elif command -v gradle >/dev/null 2>&1; then
   gradle_cmd="gradle"
+  log_warn "Using system Gradle. For this project, use Gradle 6.7.1-7.0.2 with Java 8-11."
 fi
 
 if [[ -z "$gradle_cmd" ]]; then

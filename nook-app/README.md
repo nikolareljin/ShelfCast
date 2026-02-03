@@ -60,6 +60,10 @@ cd ../nook-app
 # APK will be at: app/build/outputs/apk/release/app-release.apk
 ```
 
+Notes:
+- The repo includes a Gradle wrapper pinned to a compatible version.
+- Use Java 8-11 for the Android build (Android Gradle Plugin 4.2.2 does not support newer JDKs).
+
 ## Deployment
 
 The APK is deployed via ADB from the Raspberry Pi:

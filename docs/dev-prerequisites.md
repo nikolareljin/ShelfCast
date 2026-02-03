@@ -95,15 +95,15 @@ source ~/.bashrc
 ## 3. Gradle Setup
 
 ```bash
-# Install Gradle (or use wrapper)
-sudo apt install -y gradle
+# Preferred: use the Gradle wrapper included in nook-app/
+cd ../nook-app
+./gradlew --version
 
-# Or download specific version
-wget https://services.gradle.org/distributions/gradle-7.4.2-bin.zip
-sudo unzip -d /opt/gradle gradle-7.4.2-bin.zip
-echo 'export PATH=$PATH:/opt/gradle/gradle-7.4.2/bin' >> ~/.bashrc
-source ~/.bashrc
+# If you must install Gradle system-wide, use a compatible version:
+# Gradle 6.7.1 - 7.0.2 (Android Gradle Plugin 4.2.2)
 ```
+
+Ensure you are using Java 8-11 for the Android build (newer JDKs are not supported by the Android Gradle Plugin version used here).
 
 ## 4. ADB Setup
 
