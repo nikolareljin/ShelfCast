@@ -93,6 +93,8 @@ dist/
 out/
 target/
 *.egg-info/
+tools/gradle*/
+tools/gradle*
 
 # ===================================
 # Test & Coverage
