@@ -90,8 +90,14 @@ log_info "Building Android APK (release)"
 
 apk_path="$nook_dir/app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$apk_path" ]]; then
-  log_error "APK not found at expected path: $apk_path"
-  exit 1
+  unsigned_path="$nook_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
+  if [[ -f "$unsigned_path" ]]; then
+    apk_path="$unsigned_path"
+    log_warn "Release APK is unsigned; using $apk_path"
+  else
+    log_error "APK not found at expected path: $apk_path"
+    exit 1
+  fi
 fi
 
 dest_apk="$apk_dir/shelfcast-nook.apk"
