@@ -51,12 +51,18 @@ else
   log_warn "No APKs found in $apk_dir. Skipping app installs."
 fi
 
-ip_address="$(get_ip_address)"
-if [[ "$ip_address" != "unknown" ]]; then
-  log_info "Opening ShelfCast on the device"
-  adb shell am start -a android.intent.action.VIEW -d "http://$ip_address:8080" >/dev/null || true
+log_info "Setting up ADB reverse for localhost access"
+if adb reverse tcp:8080 tcp:8080 >/dev/null 2>&1; then
+  log_info "Opening ShelfCast on the device via localhost"
+  adb shell am start -a android.intent.action.VIEW -d "http://localhost:8080" >/dev/null || true
 else
-  log_warn "Could not detect Pi IP. Open http://<pi-ip>:8080 manually."
+  ip_address="$(get_ip_address)"
+  if [[ "$ip_address" != "unknown" ]]; then
+    log_warn "ADB reverse failed; opening ShelfCast via host IP"
+    adb shell am start -a android.intent.action.VIEW -d "http://$ip_address:8080" >/dev/null || true
+  else
+    log_warn "Could not detect host IP. Open http://<host-ip>:8080 manually."
+  fi
 fi
 
 log_info "Android provisioning complete."
