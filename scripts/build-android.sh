@@ -76,6 +76,7 @@ else
     current_version="$(gradle_version gradle)"
     if [[ -n "$current_version" ]] && version_ge "$current_version" "$desired_gradle_version"; then
       gradle_cmd="gradle"
+      log_warn "Using system Gradle. For this project, use Gradle 6.7.1-7.0.2 with Java 8-11."
     else
       if ! gradle_cmd="$(ensure_gradle)"; then
         gradle_cmd=""
@@ -95,12 +96,26 @@ if [[ -z "$gradle_cmd" ]]; then
 fi
 
 java_major() {
-  java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print ($1=="1")?$2:$1}'
+  local version
+  version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+  version="${version#1.}"
+  echo "${version%%.*}"
 }
+
+current_java=""
+if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+  current_java="$JAVA_HOME/bin/java"
+else
+  current_java="$(command -v java || true)"
+fi
 
 pick_java_home() {
   local major
-  major="$(java_major)"
+  if [[ -n "$current_java" ]]; then
+    major="$(java_major "$current_java")"
+  else
+    major=""
+  fi
   if [[ -n "$major" && "$major" -le 11 ]]; then
     return 0
   fi
@@ -138,8 +153,23 @@ if [[ "$build_variant" == "release" && ! -f "$apk_path" ]]; then
   fi
 fi
 if [[ ! -f "$apk_path" ]]; then
-  log_error "APK not found at expected path: $apk_path"
-  exit 1
+  unsigned_path="$nook_dir/app/build/outputs/apk/release/app-release-unsigned.apk"
+  debug_path="$nook_dir/app/build/outputs/apk/debug/app-debug.apk"
+  if [[ -f "$unsigned_path" ]]; then
+    if [[ -f "$debug_path" ]]; then
+      apk_path="$debug_path"
+      log_warn "Release APK is unsigned; using debug APK for install: $apk_path"
+    else
+      log_error "Release APK is unsigned and debug APK is missing."
+      exit 1
+    fi
+  elif [[ -f "$debug_path" ]]; then
+    apk_path="$debug_path"
+    log_warn "Release APK missing; using debug APK for install: $apk_path"
+  else
+    log_error "APK not found at expected paths: $apk_path or $debug_path"
+    exit 1
+  fi
 fi
 
 dest_apk="$apk_dir/shelfcast-nook.apk"

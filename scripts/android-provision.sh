@@ -51,12 +51,26 @@ else
   log_warn "No APKs found in $apk_dir. Skipping app installs."
 fi
 
-ip_address="$(get_ip_address)"
-if [[ "$ip_address" != "unknown" ]]; then
-  log_info "Opening ShelfCast on the device"
-  adb shell am start -a android.intent.action.VIEW -d "http://$ip_address:8080" >/dev/null || true
-else
-  log_warn "Could not detect Pi IP. Open http://<pi-ip>:8080 manually."
+device_url="${SHELFCAST_DEVICE_URL:-}"
+if [[ -z "$device_url" ]]; then
+  log_info "Setting up ADB reverse for localhost access"
+  if adb reverse tcp:8080 tcp:8080 >/dev/null 2>&1; then
+    device_url="http://localhost:8080"
+    log_info "ADB reverse enabled"
+  else
+    ip_address="$(get_ip_address)"
+    if [[ "$ip_address" != "unknown" ]]; then
+      device_url="http://$ip_address:8080"
+      log_warn "ADB reverse failed (likely unsupported on Android 2.1); using host IP."
+    else
+      log_warn "Could not detect host IP. Open http://<host-ip>:8080 manually."
+    fi
+  fi
+fi
+
+if [[ -n "$device_url" ]]; then
+  log_info "Opening ShelfCast on the device: $device_url"
+  adb shell am start -n com.shelfcast.nook/.MainActivity -d "$device_url" >/dev/null || true
 fi
 
 log_info "Android provisioning complete."

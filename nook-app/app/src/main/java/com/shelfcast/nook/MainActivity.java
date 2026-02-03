@@ -71,7 +71,8 @@ public class MainActivity extends Activity {
         settings.setAppCacheEnabled(true);
         settings.setDomStorageEnabled(true);
 
-        // Disable plugins for e-ink (API 7 no-op; method removed on newer SDKs)
+        // Disable plugins if supported (method removed on newer SDKs)
+        disableWebViewPlugins(settings);
 
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setBackgroundColor(0xFFFFFFFF);
@@ -97,9 +98,32 @@ public class MainActivity extends Activity {
         webView.loadUrl(serverUrl);
     }
 
+    private void disableWebViewPlugins(WebSettings settings) {
+        try {
+            java.lang.reflect.Method method =
+                    settings.getClass().getMethod("setPluginsEnabled", boolean.class);
+            method.invoke(settings, false);
+        } catch (Exception ignored) {
+            // Method not available on newer SDKs.
+        }
+    }
+
     private String getServerUrl() {
-        // Check for custom server URL in preferences
-        // Default to localhost (ADB reverse forwarding)
+        android.content.Intent intent = getIntent();
+        if (intent != null) {
+            android.net.Uri data = intent.getData();
+            if (data != null) {
+                String override = data.toString();
+                if (override.startsWith("http://") || override.startsWith("https://")) {
+                    return override;
+                }
+            }
+            String extra = intent.getStringExtra("SHELFCAST_URL");
+            if (extra != null && (extra.startsWith("http://") || extra.startsWith("https://"))) {
+                return extra;
+            }
+        }
+        // Default to localhost (expects port forwarding when available)
         return DEFAULT_SERVER_URL;
     }
 
