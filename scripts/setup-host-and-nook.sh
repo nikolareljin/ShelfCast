@@ -16,6 +16,50 @@ fi
 log_info "Installing host prerequisites (Ubuntu)"
 "$root_dir/dev-setup/install-prerequisites.sh"
 
+ensure_java_11() {
+  java_major() {
+    local version
+    version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+    version="${version#1.}"
+    echo "${version%%.*}"
+  }
+
+  find_java_11() {
+    local candidate
+    for candidate in /usr/lib/jvm/java-11-openjdk-* /usr/lib/jvm/java-11*; do
+      if [[ -x "$candidate/bin/java" ]]; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  local current_java=""
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    current_java="$JAVA_HOME/bin/java"
+  else
+    current_java="$(command -v java || true)"
+  fi
+
+  if [[ -n "$current_java" ]]; then
+    local current_major
+    current_major="$(java_major "$current_java")"
+    if [[ "$current_major" -ge 17 ]]; then
+      local java11_home
+      if java11_home="$(find_java_11)"; then
+        export JAVA_HOME="$java11_home"
+        export PATH="$JAVA_HOME/bin:$PATH"
+        log_warn "Using JAVA_HOME=$JAVA_HOME (Java $current_major is too new for Android builds)."
+      else
+        log_warn "Java $current_major detected. Install Java 11 for Android builds."
+      fi
+    fi
+  fi
+}
+
+ensure_java_11
+
 log_info "Installing Android SDK"
 "$root_dir/dev-setup/install-android-sdk.sh"
 

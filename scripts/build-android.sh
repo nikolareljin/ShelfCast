@@ -39,7 +39,54 @@ if [[ -z "$gradle_cmd" ]]; then
 fi
 
 log_info "Building Android APK (release)"
+( 
+  # Ensure we use a compatible Java version for Android Gradle Plugin 4.2.2.
+  java_major() {
+    local version
+    version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+    version="${version#1.}"
+    echo "${version%%.*}"
+  }
+
+  find_java_11() {
+    local candidate
+    for candidate in /usr/lib/jvm/java-11-openjdk-* /usr/lib/jvm/java-11*; do
+      if [[ -x "$candidate/bin/java" ]]; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    current_java="$JAVA_HOME/bin/java"
+  else
+    current_java="$(command -v java || true)"
+  fi
+
+  current_major=""
+  if [[ -n "$current_java" ]]; then
+    current_major="$(java_major "$current_java")"
+    if [[ "$current_major" -ge 17 ]]; then
+      if java11_home="$(find_java_11)"; then
+        export JAVA_HOME="$java11_home"
+        export PATH="$JAVA_HOME/bin:$PATH"
+        log_warn "Using JAVA_HOME=$JAVA_HOME for Gradle (Java $current_major is too new)."
+      fi
+    fi
+  fi
+
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    current_major="$(java_major "$JAVA_HOME/bin/java")"
+    if [[ "$current_major" -ge 17 ]]; then
+      log_error "Java $current_major is not supported by the Android Gradle Plugin. Use Java 8-11."
+      exit 1
+    fi
+  fi
+
 (cd "$nook_dir" && "$gradle_cmd" assembleRelease)
+)
 
 apk_path="$nook_dir/app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$apk_path" ]]; then
