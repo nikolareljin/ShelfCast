@@ -71,8 +71,8 @@ public class MainActivity extends Activity {
         settings.setAppCacheEnabled(true);
         settings.setDomStorageEnabled(true);
 
-        // Disable animations for e-ink
-        settings.setPluginsEnabled(false);
+        // Disable plugins if supported (method removed in newer SDKs)
+        disableWebViewPlugins(settings);
 
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setBackgroundColor(0xFFFFFFFF);
@@ -96,6 +96,16 @@ public class MainActivity extends Activity {
     private void loadDashboard() {
         String serverUrl = getServerUrl();
         webView.loadUrl(serverUrl);
+    }
+
+    private void disableWebViewPlugins(WebSettings settings) {
+        try {
+            java.lang.reflect.Method method =
+                    settings.getClass().getMethod("setPluginsEnabled", boolean.class);
+            method.invoke(settings, false);
+        } catch (Exception ignored) {
+            // Method not available on newer SDKs.
+        }
     }
 
     private String getServerUrl() {
