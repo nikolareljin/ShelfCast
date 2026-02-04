@@ -3,6 +3,7 @@ import os
 import socket
 import subprocess
 import time
+import threading
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
@@ -155,6 +156,7 @@ env = load_env()
 ensure_settings(env["settings_path"], env["settings_example_path"])
 app = Flask(__name__)
 app.secret_key = env["secret_key"]
+_start_weather_background()
 
 
 def load_settings():
@@ -180,6 +182,7 @@ def is_legacy_client():
 NEWS_CACHE = {"items": [], "last_fetch": 0.0}
 EMAIL_CACHE = {"items": [], "last_fetch": 0.0}
 WEATHER_CACHE = {"payload": {}, "last_fetch": 0.0}
+_WEATHER_THREAD_STARTED = False
 
 
 def _clamp(value, minimum, maximum):
@@ -351,6 +354,22 @@ def _refresh_weather():
     WEATHER_CACHE["payload"] = payload
     WEATHER_CACHE["last_fetch"] = now
     return payload
+
+
+def _weather_background_loop():
+    while True:
+        _refresh_weather()
+        time.sleep(900)
+
+
+def _start_weather_background():
+    global _WEATHER_THREAD_STARTED
+    if _WEATHER_THREAD_STARTED:
+        return
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        thread = threading.Thread(target=_weather_background_loop, daemon=True)
+        thread.start()
+        _WEATHER_THREAD_STARTED = True
 
 
 def _fetch_newsapi_items(api_key, limit):
