@@ -16,17 +16,89 @@
       </nav>
     </header>
 
-    <main class="grid">
+    <main class="board">
       {% if display.show_weather %}
-      <section>
+      <section class="card weather-card">
         <h2>Weather</h2>
-        <p>{{ data.weather.summary }}</p>
-        <p>High {{ data.weather.high_c }}°C / Low {{ data.weather.low_c }}°C</p>
+        <div class="weather-current">
+          <div class="weather-icon" data-icon="{{ data.weather.current_icon | default('cloudy') }}">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="sun" cx="22" cy="22" r="10"></circle>
+              <g class="rays">
+                <line x1="22" y1="2" x2="22" y2="10"></line>
+                <line x1="22" y1="34" x2="22" y2="42"></line>
+                <line x1="2" y1="22" x2="10" y2="22"></line>
+                <line x1="34" y1="22" x2="42" y2="22"></line>
+              </g>
+              <path class="cloud" d="M42 44H18a10 10 0 0 1 0-20 12 12 0 0 1 23 4 8 8 0 0 1 1 16z"></path>
+              <g class="rain">
+                <line x1="22" y1="46" x2="18" y2="56"></line>
+                <line x1="34" y1="46" x2="30" y2="56"></line>
+                <line x1="46" y1="46" x2="42" y2="56"></line>
+              </g>
+              <g class="snow">
+                <circle cx="22" cy="50" r="2"></circle>
+                <circle cx="34" cy="54" r="2"></circle>
+                <circle cx="46" cy="50" r="2"></circle>
+              </g>
+              <g class="thunder">
+                <polygon points="30,44 24,58 34,54 30,62 44,46"></polygon>
+              </g>
+            </svg>
+          </div>
+          <div>
+            <div class="weather-temp">
+              {% if data.weather.current_temp_c is not none %}
+                {{ data.weather.current_temp_c }}°C
+              {% else %}
+                --
+              {% endif %}
+            </div>
+            <div class="weather-loc">{{ data.weather.location or "Local" }}</div>
+          </div>
+        </div>
+        <div class="weather-forecast">
+          {% for item in data.weather.forecast %}
+          <div class="forecast-item">
+            <div class="forecast-date">{{ item.date }}</div>
+            <div class="forecast-icon" data-icon="{{ item.icon }}">
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <circle class="sun" cx="22" cy="22" r="10"></circle>
+                <g class="rays">
+                  <line x1="22" y1="2" x2="22" y2="10"></line>
+                  <line x1="22" y1="34" x2="22" y2="42"></line>
+                  <line x1="2" y1="22" x2="10" y2="22"></line>
+                  <line x1="34" y1="22" x2="42" y2="22"></line>
+                </g>
+                <path class="cloud" d="M42 44H18a10 10 0 0 1 0-20 12 12 0 0 1 23 4 8 8 0 0 1 1 16z"></path>
+                <g class="rain">
+                  <line x1="22" y1="46" x2="18" y2="56"></line>
+                  <line x1="34" y1="46" x2="30" y2="56"></line>
+                  <line x1="46" y1="46" x2="42" y2="56"></line>
+                </g>
+                <g class="snow">
+                  <circle cx="22" cy="50" r="2"></circle>
+                  <circle cx="34" cy="54" r="2"></circle>
+                  <circle cx="46" cy="50" r="2"></circle>
+                </g>
+                <g class="thunder">
+                  <polygon points="30,44 24,58 34,54 30,62 44,46"></polygon>
+                </g>
+              </svg>
+            </div>
+            <div class="forecast-temp">
+              {% if item.high_c is not none %}{{ item.high_c }}°{% endif %}
+              /
+              {% if item.low_c is not none %}{{ item.low_c }}°{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
       </section>
       {% endif %}
 
       {% if display.show_news %}
-      <section>
+      <section class="card">
         <h2>News</h2>
         <ul class="news-list" data-rotate-minutes="{{ news_refresh_minutes }}">
           {% for item in data.news %}
@@ -40,7 +112,7 @@
       {% endif %}
 
       {% if display.show_todos %}
-      <section>
+      <section class="card">
         <h2>Todos</h2>
         <ul>
           {% for item in data.todos %}
@@ -51,7 +123,7 @@
       {% endif %}
 
       {% if data.emails %}
-      <section>
+      <section class="card">
         <h2>Emails</h2>
         <ul class="email-list" data-rotate-minutes="1">
           {% for item in data.emails %}
@@ -65,7 +137,7 @@
       {% endif %}
 
       {% if display.show_calendar %}
-      <section>
+      <section class="card">
         <h2>Calendar</h2>
         <ul>
           {% for item in data.calendar %}
@@ -76,7 +148,7 @@
       {% endif %}
 
       {% if display.show_packages %}
-      <section>
+      <section class="card">
         <h2>Packages</h2>
         <ul>
           {% for item in data.packages %}
@@ -109,6 +181,13 @@
     rotateList(".news-list");
     rotateList(".email-list");
 
+    function setIconClass(node) {
+      const icon = node.dataset.icon || "cloudy";
+      node.classList.add(`icon-${icon}`);
+    }
+
+    document.querySelectorAll(".forecast-icon, .weather-icon").forEach(setIconClass);
+
     const refreshMinutes = parseInt(
       document.querySelector(".news-list")?.dataset.rotateMinutes || "5",
       10
@@ -129,6 +208,43 @@
               `<span class="news-source">${item.source}</span>`;
             list.appendChild(li);
           });
+
+          const weather = payload.weather || {};
+          const currentIcon = document.querySelector(".weather-icon");
+          if (currentIcon && weather.current_icon) {
+            currentIcon.className = "weather-icon";
+            currentIcon.dataset.icon = weather.current_icon;
+            setIconClass(currentIcon);
+          }
+          const tempEl = document.querySelector(".weather-temp");
+          if (tempEl && weather.current_temp_c !== undefined && weather.current_temp_c !== null) {
+            tempEl.textContent = `${weather.current_temp_c}°C`;
+          }
+          const locEl = document.querySelector(".weather-loc");
+          if (locEl && weather.location) {
+            locEl.textContent = weather.location;
+          }
+          const forecastNodes = document.querySelectorAll(".forecast-item");
+          if (weather.forecast && forecastNodes.length) {
+            weather.forecast.forEach((item, idx) => {
+              const node = forecastNodes[idx];
+              if (!node) return;
+              const iconNode = node.querySelector(".forecast-icon");
+              if (iconNode && item.icon) {
+                iconNode.className = "forecast-icon";
+                iconNode.dataset.icon = item.icon;
+                setIconClass(iconNode);
+              }
+              const tempNode = node.querySelector(".forecast-temp");
+              if (tempNode) {
+                tempNode.textContent = `${item.high_c ?? "--"}°/${item.low_c ?? "--"}°`;
+              }
+              const dateNode = node.querySelector(".forecast-date");
+              if (dateNode && item.date) {
+                dateNode.textContent = item.date;
+              }
+            });
+          }
         })
         .catch(() => {});
     }, Math.max(1, refreshMinutes) * 60 * 1000);

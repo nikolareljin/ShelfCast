@@ -173,6 +173,7 @@ def requires_display_login(settings):
 
 NEWS_CACHE = {"items": [], "last_fetch": 0.0}
 EMAIL_CACHE = {"items": [], "last_fetch": 0.0}
+WEATHER_CACHE = {"payload": {}, "last_fetch": 0.0}
 
 
 def _clamp(value, minimum, maximum):
@@ -247,6 +248,103 @@ def _get_location_country_code():
     except Exception:
         return None
     return None
+
+
+def _get_location():
+    try:
+        resp = requests.get("https://ipapi.co/json/", timeout=5)
+        if resp.ok:
+            data = resp.json()
+            return {
+                "city": data.get("city") or "",
+                "region": data.get("region") or "",
+                "country": data.get("country_name") or "",
+                "latitude": data.get("latitude"),
+                "longitude": data.get("longitude"),
+            }
+    except Exception:
+        return {}
+    return {}
+
+
+def _weather_icon_key(code):
+    if code in (0,):
+        return "clear"
+    if code in (1, 2):
+        return "partly"
+    if code in (3,):
+        return "cloudy"
+    if code in (45, 48):
+        return "fog"
+    if code in (51, 53, 55, 56, 57):
+        return "drizzle"
+    if code in (61, 63, 65, 66, 67, 80, 81, 82):
+        return "rain"
+    if code in (71, 73, 75, 77, 85, 86):
+        return "snow"
+    if code in (95, 96, 99):
+        return "thunder"
+    return "cloudy"
+
+
+def _fetch_weather():
+    location = _get_location()
+    lat = location.get("latitude")
+    lon = location.get("longitude")
+    if lat is None or lon is None:
+        return {}
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current_weather": "true",
+        "daily": "weathercode,temperature_2m_max,temperature_2m_min",
+        "timezone": "auto",
+    }
+    try:
+        resp = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=8)
+        if not resp.ok:
+            return {}
+        payload = resp.json()
+    except Exception:
+        return {}
+
+    current = payload.get("current_weather", {}) or {}
+    daily = payload.get("daily", {}) or {}
+    dates = daily.get("time", []) or []
+    maxes = daily.get("temperature_2m_max", []) or []
+    mins = daily.get("temperature_2m_min", []) or []
+    codes = daily.get("weathercode", []) or []
+    forecast = []
+    for idx in range(min(3, len(dates))):
+        code = codes[idx] if idx < len(codes) else None
+        forecast.append(
+            {
+                "date": dates[idx],
+                "high_c": maxes[idx] if idx < len(maxes) else None,
+                "low_c": mins[idx] if idx < len(mins) else None,
+                "code": code,
+                "icon": _weather_icon_key(code),
+            }
+        )
+
+    return {
+        "location": ", ".join([p for p in [location.get("city"), location.get("region")] if p]),
+        "current_temp_c": current.get("temperature"),
+        "current_windspeed": current.get("windspeed"),
+        "current_code": current.get("weathercode"),
+        "current_icon": _weather_icon_key(current.get("weathercode")),
+        "forecast": forecast,
+    }
+
+
+def _refresh_weather():
+    now = time.time()
+    if WEATHER_CACHE["payload"] and now - WEATHER_CACHE["last_fetch"] < 15 * 60:
+        return WEATHER_CACHE["payload"]
+    payload = _fetch_weather()
+    WEATHER_CACHE["payload"] = payload
+    WEATHER_CACHE["last_fetch"] = now
+    return payload
 
 
 def _fetch_newsapi_items(api_key, limit):
@@ -374,6 +472,7 @@ def index():
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
+    data["weather"] = _refresh_weather() or data.get("weather", {})
     data["news"] = _refresh_news(settings)
     data["emails"] = _refresh_emails(settings)
     display = settings.get("display", {})
@@ -392,6 +491,7 @@ def api_data():
     if requires_display_login(settings) and not is_logged_in(settings):
         return jsonify({"error": "unauthorized"}), 401
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
+    data["weather"] = _refresh_weather() or data.get("weather", {})
     data["news"] = _refresh_news(settings)
     data["emails"] = _refresh_emails(settings)
     return jsonify(data)

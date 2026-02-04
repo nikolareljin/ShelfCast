@@ -53,19 +53,133 @@ header nav {
   gap: 1rem;
 }
 
-.grid {
+.board {
   display: grid;
   gap: 1rem;
   padding: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  grid-auto-rows: minmax(140px, auto);
 }
 
-section {
+.card {
   background: var(--panel);
   border: 1px solid var(--border);
   padding: 1rem;
   border-radius: 6px;
   min-height: 140px;
+}
+
+.weather-card {
+  grid-column: span 2;
+}
+
+.weather-current {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.weather-icon,
+.forecast-icon {
+  width: 64px;
+  height: 64px;
+}
+
+.weather-icon svg,
+.forecast-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #2b2f35;
+  stroke-width: 2;
+}
+
+.weather-temp {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.weather-loc {
+  color: #5f6b7a;
+}
+
+.weather-forecast {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.forecast-item {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.forecast-date {
+  font-size: 0.9rem;
+  color: #5f6b7a;
+}
+
+.forecast-temp {
+  font-weight: 600;
+}
+
+.icon-clear .cloud,
+.icon-clear .rain,
+.icon-clear .snow,
+.icon-clear .thunder {
+  display: none;
+}
+
+.icon-partly .rain,
+.icon-partly .snow,
+.icon-partly .thunder {
+  display: none;
+}
+
+.icon-cloudy .sun,
+.icon-cloudy .rays,
+.icon-cloudy .rain,
+.icon-cloudy .snow,
+.icon-cloudy .thunder {
+  display: none;
+}
+
+.icon-fog .sun,
+.icon-fog .rays,
+.icon-fog .rain,
+.icon-fog .snow,
+.icon-fog .thunder {
+  display: none;
+  opacity: 0.6;
+}
+
+.icon-drizzle .sun,
+.icon-drizzle .rays,
+.icon-drizzle .snow,
+.icon-drizzle .thunder {
+  display: none;
+}
+
+.icon-rain .sun,
+.icon-rain .rays,
+.icon-rain .snow,
+.icon-rain .thunder {
+  display: none;
+}
+
+.icon-snow .sun,
+.icon-snow .rays,
+.icon-snow .rain,
+.icon-snow .thunder {
+  display: none;
+}
+
+.icon-thunder .sun,
+.icon-thunder .rays,
+.icon-thunder .rain,
+.icon-thunder .snow {
+  display: none;
 }
 
 .news-list,
