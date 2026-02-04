@@ -350,9 +350,12 @@ def _refresh_weather():
     if WEATHER_CACHE["payload"] and now - WEATHER_CACHE["last_fetch"] < 15 * 60:
         return WEATHER_CACHE["payload"]
     payload = _fetch_weather()
-    WEATHER_CACHE["payload"] = payload
-    WEATHER_CACHE["last_fetch"] = now
-    return payload
+    if payload:
+        WEATHER_CACHE["payload"] = payload
+        WEATHER_CACHE["last_fetch"] = now
+        return payload
+    # Keep last known good payload to avoid empty display
+    return WEATHER_CACHE["payload"]
 
 
 def _weather_background_loop():

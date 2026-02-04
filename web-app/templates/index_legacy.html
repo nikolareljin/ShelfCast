@@ -46,19 +46,29 @@
               <th>Icon</th>
               <th>High/Low</th>
             </tr>
-            {% for item in data.weather.forecast %}
-            <tr>
-              <td>{{ item.date }}</td>
-              <td>
-                <img class="icon" src="{{ url_for('static', filename='icons/' ~ (item.icon or 'cloudy') ~ '.gif') }}" alt="icon" />
-              </td>
-              <td>
-                {% if item.high_c is not none %}{{ item.high_c }}°{% else %}--{% endif %}
-                /
-                {% if item.low_c is not none %}{{ item.low_c }}°{% else %}--{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
+            {% if data.weather.forecast %}
+              {% for item in data.weather.forecast %}
+              <tr>
+                <td>{{ item.date or "--" }}</td>
+                <td>
+                  <img class="icon" src="{{ url_for('static', filename='icons/' ~ (item.icon or 'cloudy') ~ '.gif') }}" alt="icon" />
+                </td>
+                <td>
+                  {% if item.high_c is not none %}{{ item.high_c }}°{% else %}--{% endif %}
+                  /
+                  {% if item.low_c is not none %}{{ item.low_c }}°{% else %}--{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>--</td>
+                <td>
+                  <img class="icon" src="{{ url_for('static', filename='icons/cloudy.gif') }}" alt="icon" />
+                </td>
+                <td>--/--</td>
+              </tr>
+            {% endif %}
           </table>
         </td>
       </tr>
