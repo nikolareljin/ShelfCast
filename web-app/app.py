@@ -52,7 +52,11 @@ def write_json(path, payload):
 
 
 DEFAULT_SETTINGS = {
-    "auth": {"admin_user": "admin", "admin_password": "change-me"},
+    "auth": {
+        "admin_user": "admin",
+        "admin_password": "change-me",
+        "require_login_for_display": False,
+    },
     "data": {"data_path": "../data/sample_data.json"},
     "display": {
         "show_weather": True,
@@ -142,11 +146,14 @@ def save_settings(settings):
 def is_logged_in(settings):
     return session.get("user") == settings.get("auth", {}).get("admin_user")
 
+def requires_display_login(settings):
+    return bool(settings.get("auth", {}).get("require_login_for_display", False))
+
 
 @app.route("/")
 def index():
     settings = load_settings()
-    if not is_logged_in(settings):
+    if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
     display = settings.get("display", {})
@@ -158,7 +165,7 @@ def index():
 @app.route("/api/data")
 def api_data():
     settings = load_settings()
-    if not is_logged_in(settings):
+    if requires_display_login(settings) and not is_logged_in(settings):
         return jsonify({"error": "unauthorized"}), 401
     return jsonify(read_data(settings.get("data", {}).get("data_path", env["data_path"])))
 
