@@ -16,7 +16,7 @@ fi
 log_info "Installing host prerequisites (Ubuntu)"
 "$root_dir/dev-setup/install-prerequisites.sh"
 
-ensure_java_11() {
+ensure_java_8() {
   java_major() {
     local version
     version="$("$1" -version 2>&1 | head -n1 | sed -E 's/.*version "([^"]+)".*/\1/')"
@@ -58,10 +58,10 @@ ensure_java_11() {
   fi
 }
 
-ensure_java_11
-
 log_info "Installing Android SDK"
 "$root_dir/dev-setup/install-android-sdk.sh"
+
+ensure_java_8
 
 if [[ -f "${ANDROID_HOME:-$HOME/Android/Sdk}/env.sh" ]]; then
   # shellcheck disable=SC1090
