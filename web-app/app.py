@@ -91,6 +91,7 @@ DEFAULT_SETTINGS = {
         "password": "",
         "folder": "INBOX",
         "ssl": True,
+        "require_login_for_display": True,
     },
     "calendar": {
         "google": {
@@ -173,13 +174,16 @@ def save_settings(settings):
 def is_logged_in(settings):
     return session.get("user") == settings.get("auth", {}).get("admin_user")
 
+
 def requires_display_login(settings):
     return bool(settings.get("auth", {}).get("require_login_for_display", False))
+
 
 def is_legacy_client():
     ua = (request.headers.get("User-Agent") or "").lower()
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
     return any(token in ua for token in legacy_tokens)
+
 
 class ThreadSafeCache:
     def __init__(self, initial):
@@ -205,6 +209,10 @@ WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 _WEATHER_THREAD_STARTED = False
 _WEATHER_THREAD_LOCK = threading.Lock()
+_WEATHER_REFRESH_LOCK = threading.Lock()
+_LOCATION_LOCK = threading.Lock()
+_NEWS_REFRESH_LOCK = threading.Lock()
+_EMAIL_REFRESH_LOCK = threading.Lock()
 
 
 def _clamp(value, minimum, maximum):
@@ -250,13 +258,26 @@ def _is_safe_url(url):
     return True
 
 
+def _safe_get(url, timeout=8):
+    # Best-effort SSRF protection: validate before request and block redirects.
+    if not _is_safe_url(url):
+        return None
+    try:
+        resp = requests.get(url, timeout=timeout, allow_redirects=False)
+    except Exception:
+        return None
+    if getattr(resp, "is_redirect", False) or getattr(resp, "is_permanent_redirect", False):
+        return None
+    if not _is_safe_url(resp.url):
+        return None
+    return resp
+
+
 def _fetch_rss_items(url):
     items = []
-    if not _is_safe_url(url):
-        return items
     try:
-        resp = requests.get(url, timeout=8)
-        if not resp.ok:
+        resp = _safe_get(url, timeout=8)
+        if not resp or not resp.ok:
             return items
         feed = feedparser.parse(resp.text)
     except Exception:
@@ -297,32 +318,38 @@ def _expand_sources(sources):
             continue
         if normalized.lower().endswith(".opml"):
             try:
-                resp = requests.get(normalized, timeout=8)
-                if resp.ok:
-                    expanded.extend(_extract_opml_sources(resp.text))
+                resp = _safe_get(normalized, timeout=8)
+                if resp and resp.ok:
+                    opml_sources = _extract_opml_sources(resp.text)
+                    for opml_source in opml_sources:
+                        opml_normalized = _normalize_source_url(opml_source)
+                        if _is_safe_url(opml_normalized):
+                            expanded.append(opml_normalized)
                     continue
             except Exception:
+                # If fetching/parsing OPML fails, fall back to treating as a feed URL.
                 pass
         expanded.append(normalized)
     return expanded
 
 
 def _get_location_cached():
-    cached = LOCATION_CACHE.snapshot()
-    now = time.time()
-    if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
-        return cached.get("payload")
-    try:
-        resp = requests.get("https://ipapi.co/json/", timeout=5)
-        if resp.ok:
-            payload = resp.json()
-            LOCATION_CACHE.set("payload", payload)
-            LOCATION_CACHE.set("last_fetch", now)
-            return payload
-    except Exception:
-        # If geo lookup fails, return cached data.
+    with _LOCATION_LOCK:
+        cached = LOCATION_CACHE.snapshot()
+        now = time.time()
+        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
+            return cached.get("payload")
+        try:
+            resp = requests.get("https://ipapi.co/json/", timeout=5)
+            if resp.ok:
+                payload = resp.json()
+                LOCATION_CACHE.set("payload", payload)
+                LOCATION_CACHE.set("last_fetch", now)
+                return payload
+        except Exception:
+            # If geo lookup fails, return cached data.
+            return cached.get("payload", {})
         return cached.get("payload", {})
-    return cached.get("payload", {})
 
 
 def _get_location_country_code():
@@ -416,13 +443,17 @@ def _refresh_weather():
     cached = WEATHER_CACHE.snapshot()
     if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
         return cached.get("payload")
-    payload = _fetch_weather()
-    if payload:
-        WEATHER_CACHE.set("payload", payload)
-        WEATHER_CACHE.set("last_fetch", now)
-        return payload
-    # Keep last known good payload to avoid empty display
-    return cached.get("payload", {})
+    with _WEATHER_REFRESH_LOCK:
+        cached = WEATHER_CACHE.snapshot()
+        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
+            return cached.get("payload")
+        payload = _fetch_weather()
+        if payload:
+            WEATHER_CACHE.set("payload", payload)
+            WEATHER_CACHE.set("last_fetch", now)
+            return payload
+        # Keep last known good payload to avoid empty display
+        return cached.get("payload", {})
 
 
 def _weather_background_loop():
@@ -430,7 +461,7 @@ def _weather_background_loop():
         try:
             _refresh_weather()
         except Exception:
-            pass
+            app.logger.exception("Weather refresh failed")
         time.sleep(900)
 
 
@@ -502,32 +533,42 @@ def _published_timestamp(value):
 
 def _refresh_news(settings):
     news_settings = settings.get("news", {})
-    refresh_minutes = int(news_settings.get("refresh_minutes", 5) or 5)
+    try:
+        refresh_minutes = int(news_settings.get("refresh_minutes", 5) or 5)
+    except (TypeError, ValueError):
+        refresh_minutes = 5
     refresh_minutes = _clamp(refresh_minutes, 1, 15)
     now = time.time()
     cached = NEWS_CACHE.snapshot()
     if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
         return cached.get("items")
+    with _NEWS_REFRESH_LOCK:
+        cached = NEWS_CACHE.snapshot()
+        if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
+            return cached.get("items")
 
-    sources = []
-    sources.extend(news_settings.get("predefined_sources", []))
-    sources.extend(news_settings.get("custom_sources", []))
-    sources = [s.strip() for s in sources if s.strip()]
+        sources = []
+        sources.extend(news_settings.get("predefined_sources", []))
+        sources.extend(news_settings.get("custom_sources", []))
+        sources = [s.strip() for s in sources if s.strip()]
 
-    items = []
-    for source in _expand_sources(sources):
-        items.extend(_fetch_rss_items(source))
+        items = []
+        for source in _expand_sources(sources):
+            items.extend(_fetch_rss_items(source))
 
-    latest_limit = int(news_settings.get("latest_limit", 5) or 5)
-    latest_limit = _clamp(latest_limit, 5, 10)
-    items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
+        try:
+            latest_limit = int(news_settings.get("latest_limit", 5) or 5)
+        except (TypeError, ValueError):
+            latest_limit = 5
+        latest_limit = _clamp(latest_limit, 5, 10)
+        items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
 
-    items = _dedupe_news(items)
-    items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
-    items = items[:latest_limit]
-    NEWS_CACHE.set("items", items)
-    NEWS_CACHE.set("last_fetch", now)
-    return items
+        items = _dedupe_news(items)
+        items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
+        items = items[:latest_limit]
+        NEWS_CACHE.set("items", items)
+        NEWS_CACHE.set("last_fetch", now)
+        return items
 
 
 def _fetch_emails(settings):
@@ -583,10 +624,21 @@ def _refresh_emails(settings):
     cached = EMAIL_CACHE.snapshot()
     if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
         return cached.get("items")
-    items = _fetch_emails(settings)
-    EMAIL_CACHE.set("items", items)
-    EMAIL_CACHE.set("last_fetch", now)
-    return items
+    with _EMAIL_REFRESH_LOCK:
+        cached = EMAIL_CACHE.snapshot()
+        if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
+            return cached.get("items")
+        items = _fetch_emails(settings)
+        EMAIL_CACHE.set("items", items)
+        EMAIL_CACHE.set("last_fetch", now)
+        return items
+
+
+def _should_include_emails(settings):
+    email_settings = settings.get("email", {})
+    if bool(email_settings.get("require_login_for_display", True)):
+        return is_logged_in(settings)
+    return True
 
 @app.route("/")
 def index():
@@ -596,7 +648,7 @@ def index():
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
     data["weather"] = _refresh_weather() or data.get("weather", {})
     data["news"] = _refresh_news(settings)
-    data["emails"] = _refresh_emails(settings)
+    data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
     display = settings.get("display", {})
     template_name = "index_legacy.html" if is_legacy_client() else "index.html"
     return render_template(
@@ -616,7 +668,7 @@ def api_data():
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
     data["weather"] = _refresh_weather() or data.get("weather", {})
     data["news"] = _refresh_news(settings)
-    data["emails"] = _refresh_emails(settings)
+    data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
     return jsonify(data)
 
 
@@ -721,6 +773,9 @@ def settings():
             email["password"] = email_password
         email["folder"] = request.form.get("email_folder", "INBOX").strip() or "INBOX"
         email["ssl"] = bool(request.form.get("email_ssl"))
+        email["require_login_for_display"] = bool(
+            request.form.get("email_require_login_for_display")
+        )
 
         calendar = current.setdefault("calendar", {})
         google = calendar.setdefault("google", {})
@@ -740,6 +795,10 @@ def settings():
 
         save_settings(current)
         write_json(env["system_changes_path"], {"static_ip": static_ip})
+        NEWS_CACHE.set("items", [])
+        NEWS_CACHE.set("last_fetch", 0.0)
+        EMAIL_CACHE.set("items", [])
+        EMAIL_CACHE.set("last_fetch", 0.0)
 
         return redirect(url_for("settings"))
 

@@ -111,6 +111,10 @@
             Use SSL
             <input type="checkbox" name="email_ssl" {% if settings.email.ssl %}checked{% endif %} />
           </label>
+          <label>
+            <input type="checkbox" name="email_require_login_for_display" {% if settings.email.require_login_for_display %}checked{% endif %} />
+            Require login to show emails on dashboard
+          </label>
         </section>
 
         <section>
