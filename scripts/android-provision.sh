@@ -15,6 +15,19 @@ fi
 
 get_ip_address() {
   local ip
+  ip="$(ip -o -4 addr show up scope global 2>/dev/null | awk '{print $2, $4}' | while read -r iface cidr; do
+    case "$iface" in
+      lo|docker*|br-*|veth*|virbr*|vmnet*|tap*|wg*|tun*)
+        continue
+        ;;
+    esac
+    echo "$cidr"
+    break
+  done)"
+  if [[ -n "$ip" ]]; then
+    echo "${ip%%/*}"
+    return
+  fi
   ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
   echo "${ip:-unknown}"
 }
