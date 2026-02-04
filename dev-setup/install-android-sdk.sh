@@ -93,9 +93,9 @@ log_info "Installing SDK packages (this may take a while)..."
 
 PACKAGES=(
     "platform-tools"
-    "platforms;android-25"    # For compilation (legacy tooling)
+    "platforms;android-26"    # For compilation (legacy tooling)
     "platforms;android-7"     # API 7 for Nook Simple Touch
-    "build-tools;25.0.3"
+    "build-tools;26.0.2"
 )
 
 for package in "${PACKAGES[@]}"; do
