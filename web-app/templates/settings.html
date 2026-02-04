@@ -24,6 +24,10 @@
             <input type="text" name="admin_user" value="{{ settings.auth.admin_user }}" required />
           </label>
           <label>
+            <input type="checkbox" name="require_login_for_display" {% if settings.auth.require_login_for_display %}checked{% endif %} />
+            Require login for dashboard display
+          </label>
+          <label>
             New password
             <input type="password" name="admin_password" placeholder="Leave blank to keep" />
           </label>
@@ -68,12 +72,17 @@
           </label>
           <label>
             NewsAPI key
-            <input type="password" name="newsapi_key" value="{{ settings.news.newsapi_key }}" />
+            <input type="password" name="newsapi_key" placeholder="Leave blank to keep current" />
+          </label>
+          <label>
+            <input type="checkbox" name="newsapi_key_clear" />
+            Clear stored NewsAPI key
           </label>
         </section>
 
         <section>
           <h2>Email (IMAP)</h2>
+          <p class="note">Credentials are stored in plaintext in the local settings file.</p>
           <label>
             Host
             <input type="text" name="email_host" value="{{ settings.email.host }}" />
@@ -88,7 +97,11 @@
           </label>
           <label>
             Password
-            <input type="password" name="email_password" value="{{ settings.email.password }}" />
+            <input type="password" name="email_password" placeholder="Leave blank to keep current" />
+          </label>
+          <label>
+            <input type="checkbox" name="email_password_clear" />
+            Clear stored email password
           </label>
           <label>
             Folder

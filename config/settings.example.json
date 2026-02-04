@@ -1,7 +1,8 @@
 {
   "auth": {
     "admin_user": "admin",
-    "admin_password": "change-me"
+    "admin_password": "change-me",
+    "require_login_for_display": true
   },
   "data": {
     "data_path": "../data/sample_data.json"

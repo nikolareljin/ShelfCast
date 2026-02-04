@@ -164,7 +164,7 @@
       const list = document.querySelector(selector);
       if (!list) return;
       const items = list.querySelectorAll("li");
-      if (!items.length) return;
+      if (items.length <= 1) return;
       let index = 0;
       items.forEach((item, idx) => {
         item.style.display = idx === 0 ? "block" : "none";
@@ -203,9 +203,14 @@
             const li = document.createElement("li");
             li.className = "news-item";
             li.style.display = index === 0 ? "block" : "none";
-            li.innerHTML =
-              `<span class="news-title">${item.title}</span>` +
-              `<span class="news-source">${item.source}</span>`;
+            const titleSpan = document.createElement("span");
+            titleSpan.className = "news-title";
+            titleSpan.textContent = item.title ?? "";
+            const sourceSpan = document.createElement("span");
+            sourceSpan.className = "news-source";
+            sourceSpan.textContent = item.source ?? "";
+            li.appendChild(titleSpan);
+            li.appendChild(sourceSpan);
             list.appendChild(li);
           });
 
@@ -246,7 +251,9 @@
             });
           }
         })
-        .catch(() => {});
+        .catch((error) => {
+          console.warn("Failed to refresh news", error);
+        });
     }, Math.max(1, refreshMinutes) * 60 * 1000);
 
     setInterval(() => {
@@ -260,13 +267,20 @@
             const li = document.createElement("li");
             li.className = "email-item";
             li.style.display = index === 0 ? "block" : "none";
-            li.innerHTML =
-              `<span class="email-subject">${item.subject}</span>` +
-              `<span class="email-from">${item.from}</span>`;
+            const subjectSpan = document.createElement("span");
+            subjectSpan.className = "email-subject";
+            subjectSpan.textContent = item.subject ?? "";
+            const fromSpan = document.createElement("span");
+            fromSpan.className = "email-from";
+            fromSpan.textContent = item.from ?? "";
+            li.appendChild(subjectSpan);
+            li.appendChild(fromSpan);
             list.appendChild(li);
           });
         })
-        .catch(() => {});
+        .catch((error) => {
+          console.warn("Failed to refresh emails", error);
+        });
     }, 60 * 1000);
   </script>
 </html>

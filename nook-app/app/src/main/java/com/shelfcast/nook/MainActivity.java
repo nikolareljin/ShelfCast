@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
-        // Cache settings for offline capability
+        // Cache and storage settings: disable caching and offline storage to always load fresh content
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setAppCacheEnabled(false);
         settings.setDomStorageEnabled(false);

@@ -5,6 +5,8 @@ import subprocess
 import time
 import threading
 from datetime import datetime
+from email.parser import BytesParser
+from email.policy import default as email_default_policy
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
@@ -64,7 +66,7 @@ DEFAULT_SETTINGS = {
     "auth": {
         "admin_user": "admin",
         "admin_password": "change-me",
-        "require_login_for_display": False,
+        "require_login_for_display": True,
     },
     "data": {"data_path": "../data/sample_data.json"},
     "display": {
@@ -178,10 +180,30 @@ def is_legacy_client():
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
     return any(token in ua for token in legacy_tokens)
 
-NEWS_CACHE = {"items": [], "last_fetch": 0.0}
-EMAIL_CACHE = {"items": [], "last_fetch": 0.0}
-WEATHER_CACHE = {"payload": {}, "last_fetch": 0.0}
+class ThreadSafeCache:
+    def __init__(self, initial):
+        self._lock = threading.RLock()
+        self._data = dict(initial)
+
+    def get(self, key, default=None):
+        with self._lock:
+            return self._data.get(key, default)
+
+    def set(self, key, value):
+        with self._lock:
+            self._data[key] = value
+
+    def snapshot(self):
+        with self._lock:
+            return dict(self._data)
+
+
+NEWS_CACHE = ThreadSafeCache({"items": [], "last_fetch": 0.0})
+EMAIL_CACHE = ThreadSafeCache({"items": [], "last_fetch": 0.0})
+WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
+LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 _WEATHER_THREAD_STARTED = False
+_WEATHER_THREAD_LOCK = threading.Lock()
 
 
 def _clamp(value, minimum, maximum):
@@ -247,32 +269,38 @@ def _expand_sources(sources):
     return expanded
 
 
-def _get_location_country_code():
+def _get_location_cached():
+    cached = LOCATION_CACHE.snapshot()
+    now = time.time()
+    if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
+        return cached.get("payload")
     try:
         resp = requests.get("https://ipapi.co/json/", timeout=5)
         if resp.ok:
-            data = resp.json()
-            return data.get("country_code")
+            payload = resp.json()
+            LOCATION_CACHE.set("payload", payload)
+            LOCATION_CACHE.set("last_fetch", now)
+            return payload
     except Exception:
-        return None
-    return None
+        # If geo lookup fails, return cached data.
+        return cached.get("payload", {})
+    return cached.get("payload", {})
+
+
+def _get_location_country_code():
+    data = _get_location_cached()
+    return data.get("country_code")
 
 
 def _get_location():
-    try:
-        resp = requests.get("https://ipapi.co/json/", timeout=5)
-        if resp.ok:
-            data = resp.json()
-            return {
-                "city": data.get("city") or "",
-                "region": data.get("region") or "",
-                "country": data.get("country_name") or "",
-                "latitude": data.get("latitude"),
-                "longitude": data.get("longitude"),
-            }
-    except Exception:
-        return {}
-    return {}
+    data = _get_location_cached()
+    return {
+        "city": data.get("city") or "",
+        "region": data.get("region") or "",
+        "country": data.get("country_name") or "",
+        "latitude": data.get("latitude"),
+        "longitude": data.get("longitude"),
+    }
 
 
 def _weather_icon_key(code):
@@ -347,15 +375,16 @@ def _fetch_weather():
 
 def _refresh_weather():
     now = time.time()
-    if WEATHER_CACHE["payload"] and now - WEATHER_CACHE["last_fetch"] < 15 * 60:
-        return WEATHER_CACHE["payload"]
+    cached = WEATHER_CACHE.snapshot()
+    if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
+        return cached.get("payload")
     payload = _fetch_weather()
     if payload:
-        WEATHER_CACHE["payload"] = payload
-        WEATHER_CACHE["last_fetch"] = now
+        WEATHER_CACHE.set("payload", payload)
+        WEATHER_CACHE.set("last_fetch", now)
         return payload
     # Keep last known good payload to avoid empty display
-    return WEATHER_CACHE["payload"]
+    return cached.get("payload", {})
 
 
 def _weather_background_loop():
@@ -366,12 +395,13 @@ def _weather_background_loop():
 
 def _start_weather_background():
     global _WEATHER_THREAD_STARTED
-    if _WEATHER_THREAD_STARTED:
-        return
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-        thread = threading.Thread(target=_weather_background_loop, daemon=True)
-        thread.start()
-        _WEATHER_THREAD_STARTED = True
+    with _WEATHER_THREAD_LOCK:
+        if _WEATHER_THREAD_STARTED:
+            return
+        if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+            thread = threading.Thread(target=_weather_background_loop, daemon=True)
+            thread.start()
+            _WEATHER_THREAD_STARTED = True
 
 
 _start_weather_background()
@@ -421,6 +451,7 @@ def _published_timestamp(value):
     try:
         return parsedate_to_datetime(value).timestamp()
     except Exception:
+        # Unsupported date format; try ISO fallback.
         pass
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
@@ -433,8 +464,9 @@ def _refresh_news(settings):
     refresh_minutes = int(news_settings.get("refresh_minutes", 5) or 5)
     refresh_minutes = _clamp(refresh_minutes, 1, 15)
     now = time.time()
-    if NEWS_CACHE["items"] and now - NEWS_CACHE["last_fetch"] < refresh_minutes * 60:
-        return NEWS_CACHE["items"]
+    cached = NEWS_CACHE.snapshot()
+    if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
+        return cached.get("items")
 
     sources = []
     sources.extend(news_settings.get("predefined_sources", []))
@@ -452,8 +484,8 @@ def _refresh_news(settings):
     items = _dedupe_news(items)
     items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
     items = items[:latest_limit]
-    NEWS_CACHE["items"] = items
-    NEWS_CACHE["last_fetch"] = now
+    NEWS_CACHE.set("items", items)
+    NEWS_CACHE.set("last_fetch", now)
     return items
 
 
@@ -467,6 +499,7 @@ def _fetch_emails(settings):
     port = int(email_settings.get("port", 993) or 993)
     folder = email_settings.get("folder", "INBOX")
     use_ssl = bool(email_settings.get("ssl", True))
+    client = None
     try:
         if use_ssl:
             client = imaplib.IMAP4_SSL(host, port)
@@ -480,35 +513,38 @@ def _fetch_emails(settings):
         ids = data[0].split()
         latest_ids = ids[-5:] if len(ids) > 5 else ids
         emails = []
+        parser = BytesParser(policy=email_default_policy)
         for msg_id in reversed(latest_ids):
-            status, msg_data = client.fetch(msg_id, "(BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])")
+            status, msg_data = client.fetch(msg_id, "(BODY.PEEK[HEADER])")
             if status != "OK":
                 continue
-            raw = msg_data[0][1].decode("utf-8", errors="replace")
-            subject = ""
-            sender = ""
-            date_str = ""
-            for line in raw.splitlines():
-                if line.lower().startswith("subject:"):
-                    subject = line.split(":", 1)[1].strip()
-                elif line.lower().startswith("from:"):
-                    sender = line.split(":", 1)[1].strip()
-                elif line.lower().startswith("date:"):
-                    date_str = line.split(":", 1)[1].strip()
-            emails.append({"subject": subject or "(no subject)", "from": sender, "date": date_str})
-        client.logout()
+            raw_bytes = msg_data[0][1]
+            message = parser.parsebytes(raw_bytes)
+            subject = message.get("subject", "")
+            sender = message.get("from", "")
+            date_str = message.get("date", "")
+            emails.append(
+                {"subject": subject or "(no subject)", "from": sender, "date": date_str}
+            )
         return emails
     except Exception:
         return []
+    finally:
+        if client is not None:
+            try:
+                client.logout()
+            except Exception:
+                pass
 
 
 def _refresh_emails(settings):
     now = time.time()
-    if EMAIL_CACHE["items"] and now - EMAIL_CACHE["last_fetch"] < 60:
-        return EMAIL_CACHE["items"]
+    cached = EMAIL_CACHE.snapshot()
+    if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
+        return cached.get("items")
     items = _fetch_emails(settings)
-    EMAIL_CACHE["items"] = items
-    EMAIL_CACHE["last_fetch"] = now
+    EMAIL_CACHE.set("items", items)
+    EMAIL_CACHE.set("last_fetch", now)
     return items
 
 @app.route("/")
@@ -587,6 +623,7 @@ def settings():
         auth = current.setdefault("auth", {})
         admin_user = request.form.get("admin_user", auth.get("admin_user", "admin")).strip()
         auth["admin_user"] = admin_user or auth.get("admin_user", "admin")
+        auth["require_login_for_display"] = bool(request.form.get("require_login_for_display"))
 
         new_password = request.form.get("admin_password", "")
         if new_password:
@@ -618,7 +655,9 @@ def settings():
         news_limit = int(request.form.get("news_latest_limit", "5") or 5)
         news["latest_limit"] = _clamp(news_limit, 5, 10)
         newsapi_key = request.form.get("newsapi_key", "").strip()
-        if newsapi_key:
+        if request.form.get("newsapi_key_clear"):
+            news["newsapi_key"] = ""
+        elif newsapi_key != "":
             news["newsapi_key"] = newsapi_key
 
         email = current.setdefault("email", {})
@@ -627,7 +666,9 @@ def settings():
         email["port"] = int(email_port) if email_port.isdigit() else 993
         email["user"] = request.form.get("email_user", "").strip()
         email_password = request.form.get("email_password", "").strip()
-        if email_password:
+        if request.form.get("email_password_clear"):
+            email["password"] = ""
+        elif email_password != "":
             email["password"] = email_password
         email["folder"] = request.form.get("email_folder", "INBOX").strip() or "INBOX"
         email["ssl"] = bool(request.form.get("email_ssl"))
