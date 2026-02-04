@@ -73,6 +73,12 @@ header nav {
   grid-column: span 2;
 }
 
+@media (max-width: 520px) {
+  .weather-card {
+    grid-column: span 1;
+  }
+}
+
 .weather-current {
   display: flex;
   align-items: center;

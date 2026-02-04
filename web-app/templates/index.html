@@ -58,6 +58,7 @@
           </div>
         </div>
         <div class="weather-forecast">
+          {% if data.weather.forecast %}
           {% for item in data.weather.forecast %}
           <div class="forecast-item">
             <div class="forecast-date">{{ item.date }}</div>
@@ -93,6 +94,9 @@
             </div>
           </div>
           {% endfor %}
+          {% else %}
+          <div class="forecast-empty">No forecast available.</div>
+          {% endif %}
         </div>
       </section>
       {% endif %}
@@ -125,7 +129,7 @@
       {% if data.emails %}
       <section class="card">
         <h2>Emails</h2>
-        <ul class="email-list" data-rotate-minutes="1">
+        <ul class="email-list" data-rotate-minutes="{{ email_refresh_minutes }}">
           {% for item in data.emails %}
           <li class="email-item">
             <span class="email-subject">{{ item.subject }}</span>
@@ -176,7 +180,7 @@
         items[i].style.display = i === 0 ? "block" : "none";
       }
       if (items.length <= 1) return;
-      var minutes = parseInt(list.getAttribute("data-rotate-minutes") || "5", 10);
+      var minutes = parseInt(list.getAttribute("data-rotate-minutes") || "5", 10) || 5;
       var interval = Math.max(1, minutes) * 60 * 1000;
       rotationTimers[selector] = setInterval(function () {
         items[index].style.display = "none";
@@ -195,20 +199,30 @@
 
     document.querySelectorAll(".forecast-icon, .weather-icon").forEach(setIconClass);
 
+    function handleUnauthorized(response) {
+      if (response.status === 401) {
+        window.location = "/login";
+        return true;
+      }
+      return false;
+    }
+
     function getRotateMinutes(selector, fallback) {
       var list = document.querySelector(selector);
       if (!list) return fallback;
       return list.getAttribute("data-rotate-minutes") || fallback;
     }
 
-    var refreshMinutes = parseInt(getRotateMinutes(".news-list", "5"), 10);
+    var refreshMinutes = parseInt(getRotateMinutes(".news-list", "5"), 10) || 5;
     if (document.querySelector(".news-list")) {
       setInterval(function () {
         fetch("/api/data")
           .then(function (response) {
+            if (handleUnauthorized(response)) return null;
             return response.json();
           })
           .then(function (payload) {
+            if (!payload) return;
             var list = document.querySelector(".news-list");
             if (!list || !payload.news) return;
             list.innerHTML = "";
@@ -274,12 +288,15 @@
     }
 
     if (document.querySelector(".email-list")) {
+      var emailRefreshMinutes = parseInt(getRotateMinutes(".email-list", "1"), 10) || 1;
       setInterval(function () {
         fetch("/api/data")
           .then(function (response) {
+            if (handleUnauthorized(response)) return null;
             return response.json();
           })
           .then(function (payload) {
+            if (!payload) return;
             var list = document.querySelector(".email-list");
             if (!list || !payload.emails) return;
             list.innerHTML = "";
@@ -302,7 +319,7 @@
           .catch(function (error) {
             console.warn("Failed to refresh emails", error);
           });
-      }, 60 * 1000);
+      }, Math.max(1, emailRefreshMinutes) * 60 * 1000);
     }
   </script>
 </html>

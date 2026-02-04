@@ -29,7 +29,9 @@
     "user": "",
     "password": "",
     "folder": "INBOX",
-    "ssl": true
+    "ssl": true,
+    "require_login_for_display": true,
+    "refresh_minutes": 1
   },
   "calendar": {
     "google": {

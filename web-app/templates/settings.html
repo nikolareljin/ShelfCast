@@ -82,14 +82,17 @@
 
         <section>
           <h2>Email (IMAP)</h2>
-          <p class="note">Credentials are stored in plaintext in the local settings file and are not encrypted.</p>
+          <p class="note">
+            Credentials are stored in plaintext in the local settings file and are not encrypted.
+            Set `SHELFCAST_EMAIL_PASSWORD` to override the stored password.
+          </p>
           <label>
             Host
             <input type="text" name="email_host" value="{{ settings.email.host }}" />
           </label>
           <label>
             Port
-            <input type="number" name="email_port" value="{{ settings.email.port }}" />
+            <input type="number" name="email_port" min="1" max="65535" value="{{ settings.email.port }}" />
           </label>
           <label>
             Username
@@ -114,6 +117,10 @@
           <label>
             <input type="checkbox" name="email_require_login_for_display" {% if settings.email.require_login_for_display %}checked{% endif %} />
             Require login to show emails on dashboard
+          </label>
+          <label>
+            Email refresh (minutes, 1-15)
+            <input type="number" name="email_refresh_minutes" min="1" max="15" value="{{ settings.email.refresh_minutes }}" />
           </label>
         </section>
 

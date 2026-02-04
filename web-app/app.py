@@ -10,6 +10,7 @@ from email.parser import BytesParser
 from email.policy import default as email_default_policy
 from urllib.parse import urlparse
 from defusedxml import ElementTree as DefusedET
+from defusedxml.common import DefusedXmlException
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -33,6 +34,7 @@ def load_env():
         "system_changes_path": os.environ.get(
             "SHELFCAST_SYSTEM_CHANGES_PATH", "../config/system_changes.json"
         ),
+        "email_password": os.environ.get("SHELFCAST_EMAIL_PASSWORD", ""),
         "port": int(os.environ.get("SHELFCAST_PORT", "8080")),
     }
 
@@ -92,6 +94,7 @@ DEFAULT_SETTINGS = {
         "folder": "INBOX",
         "ssl": True,
         "require_login_for_display": True,
+        "refresh_minutes": 1,
     },
     "calendar": {
         "google": {
@@ -208,6 +211,7 @@ EMAIL_CACHE = ThreadSafeCache({"items": [], "last_fetch": 0.0})
 WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 _WEATHER_THREAD_STARTED = False
+_WEATHER_STOP_EVENT = threading.Event()
 _WEATHER_THREAD_LOCK = threading.Lock()
 _WEATHER_REFRESH_LOCK = threading.Lock()
 _LOCATION_LOCK = threading.Lock()
@@ -219,12 +223,13 @@ def _clamp(value, minimum, maximum):
     return max(minimum, min(maximum, value))
 
 
-def _normalize_news_item(title, source, link, published):
+def _normalize_news_item(title, source, link, published, source_type):
     return {
         "title": title.strip() if title else "Untitled",
         "source": source.strip() if source else "Unknown",
         "link": link or "",
         "published": published or "",
+        "source_type": source_type,
     }
 
 
@@ -268,6 +273,8 @@ def _safe_get(url, timeout=8):
         return None
     if getattr(resp, "is_redirect", False) or getattr(resp, "is_permanent_redirect", False):
         return None
+    if resp.url != url:
+        return None
     if not _is_safe_url(resp.url):
         return None
     return resp
@@ -287,7 +294,11 @@ def _fetch_rss_items(url):
         title = entry.get("title", "")
         link = entry.get("link", "")
         published = entry.get("published", "") or entry.get("updated", "")
-        items.append(_normalize_news_item(title, source_title or urlparse(url).netloc, link, published))
+        items.append(
+            _normalize_news_item(
+                title, source_title or urlparse(url).netloc, link, published, "rss"
+            )
+        )
     return items
 
 
@@ -301,7 +312,7 @@ def _extract_opml_sources(content):
     sources = []
     try:
         root = DefusedET.fromstring(content)
-    except DefusedET.ParseError:
+    except (DefusedET.ParseError, DefusedXmlException):
         return sources
     for outline in root.iter("outline"):
         xml_url = outline.attrib.get("xmlUrl") or outline.attrib.get("url")
@@ -337,7 +348,7 @@ def _get_location_cached():
     with _LOCATION_LOCK:
         cached = LOCATION_CACHE.snapshot()
         now = time.time()
-        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
+        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 6 * 60 * 60:
             return cached.get("payload")
         try:
             resp = requests.get("https://ipapi.co/json/", timeout=5)
@@ -456,13 +467,18 @@ def _refresh_weather():
         return cached.get("payload", {})
 
 
-def _weather_background_loop():
-    while True:
+def _weather_background_loop(stop_event=None):
+    if stop_event is None:
+        stop_event = _WEATHER_STOP_EVENT
+    while not stop_event.is_set():
         try:
             _refresh_weather()
-        except Exception:
-            app.logger.exception("Weather refresh failed")
-        time.sleep(900)
+        except Exception as exc:
+            try:
+                app.logger.exception("Weather refresh failed")
+            except Exception:
+                print(f"Weather refresh failed: {exc}", flush=True)
+        stop_event.wait(900)
 
 
 def _start_weather_background():
@@ -471,12 +487,17 @@ def _start_weather_background():
         if _WEATHER_THREAD_STARTED:
             return
         if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-            thread = threading.Thread(target=_weather_background_loop, daemon=True)
+            _WEATHER_STOP_EVENT.clear()
+            thread = threading.Thread(
+                target=_weather_background_loop, args=(_WEATHER_STOP_EVENT,), daemon=True
+            )
             thread.start()
             _WEATHER_THREAD_STARTED = True
+ 
 
-
-_start_weather_background()
+@app.before_first_request
+def _init_weather_background():
+    _start_weather_background()
 
 
 def _fetch_newsapi_items(api_key, limit):
@@ -501,7 +522,7 @@ def _fetch_newsapi_items(api_key, limit):
         source = (article.get("source") or {}).get("name", "NewsAPI")
         link = article.get("url", "")
         published = article.get("publishedAt", "")
-        items.append(_normalize_news_item(title, source, link, published))
+        items.append(_normalize_news_item(title, source, link, published, "newsapi"))
     return items
 
 
@@ -565,7 +586,22 @@ def _refresh_news(settings):
 
         items = _dedupe_news(items)
         items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
-        items = items[:latest_limit]
+        if latest_limit > 1:
+            has_newsapi = any(item.get("source_type") == "newsapi" for item in items)
+            if has_newsapi:
+                newsapi_items = [item for item in items if item.get("source_type") == "newsapi"]
+                rss_items = [item for item in items if item.get("source_type") != "newsapi"]
+                items = rss_items[: max(latest_limit - 1, 0)]
+                items.extend(newsapi_items[:1])
+                items.sort(
+                    key=lambda item: _published_timestamp(item.get("published")),
+                    reverse=True,
+                )
+                items = items[:latest_limit]
+            else:
+                items = items[:latest_limit]
+        else:
+            items = items[:latest_limit]
         NEWS_CACHE.set("items", items)
         NEWS_CACHE.set("last_fetch", now)
         return items
@@ -575,7 +611,7 @@ def _fetch_emails(settings):
     email_settings = settings.get("email", {})
     host = email_settings.get("host")
     user = email_settings.get("user")
-    password = email_settings.get("password")
+    password = env.get("email_password") or email_settings.get("password")
     if not host or not user or not password:
         return []
     port = int(email_settings.get("port", 993) or 993)
@@ -620,13 +656,19 @@ def _fetch_emails(settings):
 
 
 def _refresh_emails(settings):
+    email_settings = settings.get("email", {})
+    try:
+        refresh_minutes = int(email_settings.get("refresh_minutes", 1) or 1)
+    except (TypeError, ValueError):
+        refresh_minutes = 1
+    refresh_minutes = _clamp(refresh_minutes, 1, 15)
     now = time.time()
     cached = EMAIL_CACHE.snapshot()
-    if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
+    if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
         return cached.get("items")
     with _EMAIL_REFRESH_LOCK:
         cached = EMAIL_CACHE.snapshot()
-        if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
+        if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
             return cached.get("items")
         items = _fetch_emails(settings)
         EMAIL_CACHE.set("items", items)
@@ -657,6 +699,7 @@ def index():
         display=display,
         ip_address=get_ip_address(),
         news_refresh_minutes=settings.get("news", {}).get("refresh_minutes", 5),
+        email_refresh_minutes=settings.get("email", {}).get("refresh_minutes", 1),
     )
 
 
@@ -776,6 +819,12 @@ def settings():
         email["require_login_for_display"] = bool(
             request.form.get("email_require_login_for_display")
         )
+        email_refresh_raw = (request.form.get("email_refresh_minutes", "1") or "1").strip()
+        try:
+            email_refresh = int(email_refresh_raw)
+        except (TypeError, ValueError):
+            email_refresh = 1
+        email["refresh_minutes"] = _clamp(email_refresh, 1, 15)
 
         calendar = current.setdefault("calendar", {})
         google = calendar.setdefault("google", {})
