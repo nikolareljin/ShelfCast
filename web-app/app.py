@@ -156,7 +156,6 @@ env = load_env()
 ensure_settings(env["settings_path"], env["settings_example_path"])
 app = Flask(__name__)
 app.secret_key = env["secret_key"]
-_start_weather_background()
 
 
 def load_settings():
@@ -370,6 +369,9 @@ def _start_weather_background():
         thread = threading.Thread(target=_weather_background_loop, daemon=True)
         thread.start()
         _WEATHER_THREAD_STARTED = True
+
+
+_start_weather_background()
 
 
 def _fetch_newsapi_items(api_key, limit):
