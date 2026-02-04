@@ -4,7 +4,7 @@ import socket
 import subprocess
 import time
 import threading
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
