@@ -233,17 +233,9 @@ def _normalize_news_item(title, source, link, published, source_type):
     }
 
 
-def _is_safe_url(url):
+def _resolved_ips_safe(hostname):
     try:
-        parsed = urlparse(url)
-    except Exception:
-        return False
-    if parsed.scheme not in ("http", "https"):
-        return False
-    if not parsed.hostname:
-        return False
-    try:
-        infos = socket.getaddrinfo(parsed.hostname, None)
+        infos = socket.getaddrinfo(hostname, None)
     except socket.gaierror:
         return False
     for info in infos:
@@ -263,9 +255,24 @@ def _is_safe_url(url):
     return True
 
 
+def _is_safe_url(url):
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.hostname:
+        return False
+    return _resolved_ips_safe(parsed.hostname)
+
+
 def _safe_get(url, timeout=8):
     # Best-effort SSRF protection: validate before request and block redirects.
     if not _is_safe_url(url):
+        return None
+    parsed = urlparse(url)
+    if not _resolved_ips_safe(parsed.hostname):
         return None
     try:
         resp = requests.get(url, timeout=timeout, allow_redirects=False)
@@ -274,6 +281,11 @@ def _safe_get(url, timeout=8):
     if getattr(resp, "is_redirect", False) or getattr(resp, "is_permanent_redirect", False):
         return None
     if resp.url != url:
+        return None
+    final_parsed = urlparse(resp.url)
+    if final_parsed.hostname != parsed.hostname:
+        return None
+    if not _resolved_ips_safe(final_parsed.hostname):
         return None
     if not _is_safe_url(resp.url):
         return None
@@ -807,7 +819,14 @@ def settings():
         email = current.setdefault("email", {})
         email["host"] = request.form.get("email_host", "").strip()
         email_port = request.form.get("email_port", "993").strip()
-        email["port"] = int(email_port) if email_port.isdigit() else 993
+        try:
+            port_value = int(email_port)
+        except (TypeError, ValueError):
+            port_value = 993
+        else:
+            if not (1 <= port_value <= 65535):
+                port_value = 993
+        email["port"] = port_value
         email["user"] = request.form.get("email_user", "").strip()
         email_password = request.form.get("email_password", "").strip()
         if request.form.get("email_password_clear"):
