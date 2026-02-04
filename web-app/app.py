@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import feedparser
@@ -390,6 +391,19 @@ def _dedupe_news(items):
     return output
 
 
+def _published_timestamp(value):
+    if not value:
+        return 0.0
+    try:
+        return parsedate_to_datetime(value).timestamp()
+    except Exception:
+        pass
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
 def _refresh_news(settings):
     news_settings = settings.get("news", {})
     refresh_minutes = int(news_settings.get("refresh_minutes", 5) or 5)
@@ -412,6 +426,8 @@ def _refresh_news(settings):
     items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
 
     items = _dedupe_news(items)
+    items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
+    items = items[:latest_limit]
     NEWS_CACHE["items"] = items
     NEWS_CACHE["last_fetch"] = now
     return items
