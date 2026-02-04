@@ -58,6 +58,46 @@
             <textarea name="news_custom_sources" rows="4">{% for source in settings.news.custom_sources %}{{ source }}
 {% endfor %}</textarea>
           </label>
+          <label>
+            News refresh (minutes, 1-15)
+            <input type="number" name="news_refresh_minutes" min="1" max="15" value="{{ settings.news.refresh_minutes }}" />
+          </label>
+          <label>
+            Latest news limit (5-10)
+            <input type="number" name="news_latest_limit" min="5" max="10" value="{{ settings.news.latest_limit }}" />
+          </label>
+          <label>
+            NewsAPI key
+            <input type="password" name="newsapi_key" value="{{ settings.news.newsapi_key }}" />
+          </label>
+        </section>
+
+        <section>
+          <h2>Email (IMAP)</h2>
+          <label>
+            Host
+            <input type="text" name="email_host" value="{{ settings.email.host }}" />
+          </label>
+          <label>
+            Port
+            <input type="number" name="email_port" value="{{ settings.email.port }}" />
+          </label>
+          <label>
+            Username
+            <input type="text" name="email_user" value="{{ settings.email.user }}" />
+          </label>
+          <label>
+            Password
+            <input type="password" name="email_password" value="{{ settings.email.password }}" />
+          </label>
+          <label>
+            Folder
+            <input type="text" name="email_folder" value="{{ settings.email.folder }}" />
+          </label>
+          <label>
+            Use SSL
+            <input type="checkbox" name="email_ssl" {% if settings.email.ssl %}checked{% endif %} />
+          </label>
         </section>
 
         <section>

@@ -28,9 +28,12 @@
       {% if display.show_news %}
       <section>
         <h2>News</h2>
-        <ul>
+        <ul class="news-list" data-rotate-minutes="{{ news_refresh_minutes }}">
           {% for item in data.news %}
-          <li>{{ item.title }} - {{ item.source }}</li>
+          <li class="news-item">
+            <span class="news-title">{{ item.title }}</span>
+            <span class="news-source">{{ item.source }}</span>
+          </li>
           {% endfor %}
         </ul>
       </section>
@@ -42,6 +45,20 @@
         <ul>
           {% for item in data.todos %}
           <li>{{ item.title }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {% if data.emails %}
+      <section>
+        <h2>Emails</h2>
+        <ul class="email-list" data-rotate-minutes="1">
+          {% for item in data.emails %}
+          <li class="email-item">
+            <span class="email-subject">{{ item.subject }}</span>
+            <span class="email-from">{{ item.from }}</span>
+          </li>
           {% endfor %}
         </ul>
       </section>
@@ -70,4 +87,70 @@
       {% endif %}
     </main>
   </body>
+  <script>
+    function rotateList(selector) {
+      const list = document.querySelector(selector);
+      if (!list) return;
+      const items = list.querySelectorAll("li");
+      if (!items.length) return;
+      let index = 0;
+      items.forEach((item, idx) => {
+        item.style.display = idx === 0 ? "block" : "none";
+      });
+      const minutes = parseInt(list.dataset.rotateMinutes || "5", 10);
+      const interval = Math.max(1, minutes) * 60 * 1000;
+      setInterval(() => {
+        items[index].style.display = "none";
+        index = (index + 1) % items.length;
+        items[index].style.display = "block";
+      }, interval);
+    }
+
+    rotateList(".news-list");
+    rotateList(".email-list");
+
+    const refreshMinutes = parseInt(
+      document.querySelector(".news-list")?.dataset.rotateMinutes || "5",
+      10
+    );
+    setInterval(() => {
+      fetch("/api/data")
+        .then((response) => response.json())
+        .then((payload) => {
+          const list = document.querySelector(".news-list");
+          if (!list || !payload.news) return;
+          list.innerHTML = "";
+          payload.news.forEach((item, index) => {
+            const li = document.createElement("li");
+            li.className = "news-item";
+            li.style.display = index === 0 ? "block" : "none";
+            li.innerHTML =
+              `<span class="news-title">${item.title}</span>` +
+              `<span class="news-source">${item.source}</span>`;
+            list.appendChild(li);
+          });
+        })
+        .catch(() => {});
+    }, Math.max(1, refreshMinutes) * 60 * 1000);
+
+    setInterval(() => {
+      fetch("/api/data")
+        .then((response) => response.json())
+        .then((payload) => {
+          const list = document.querySelector(".email-list");
+          if (!list || !payload.emails) return;
+          list.innerHTML = "";
+          payload.emails.forEach((item, index) => {
+            const li = document.createElement("li");
+            li.className = "email-item";
+            li.style.display = index === 0 ? "block" : "none";
+            li.innerHTML =
+              `<span class="email-subject">${item.subject}</span>` +
+              `<span class="email-from">${item.from}</span>`;
+            list.appendChild(li);
+          });
+        })
+        .catch(() => {});
+    }, 60 * 1000);
+  </script>
 </html>

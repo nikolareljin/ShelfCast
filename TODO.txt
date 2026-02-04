@@ -1,0 +1,11 @@
+TODO - Nook Simple Touch (BNRV300, 1.2.1) Setup Notes
+
+- USB debugging is hidden on stock 1.2.1; Developer options may not appear.
+- Recommended: use NookManager (SD-card boot) to enable USB debugging and install Settings app.
+- Alternative (if ADB over Wi-Fi works): install a Settings.apk via adb, then enable USB debugging.
+  Commands:
+    adb connect <nook-ip>:5555
+    adb install /path/to/Settings.apk
+    adb shell am start -a android.intent.action.MAIN -n com.android.settings/.Settings
+- After enabling USB debugging, connect via USB and verify:
+    adb devices

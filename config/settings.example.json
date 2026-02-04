@@ -17,7 +17,18 @@
     "predefined_sources": [
       "https://example.com/rss"
     ],
-    "custom_sources": []
+    "custom_sources": [],
+    "refresh_minutes": 5,
+    "latest_limit": 5,
+    "newsapi_key": ""
+  },
+  "email": {
+    "host": "",
+    "port": 993,
+    "user": "",
+    "password": "",
+    "folder": "INBOX",
+    "ssl": true
   },
   "calendar": {
     "google": {

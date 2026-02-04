@@ -2,8 +2,15 @@ import json
 import os
 import socket
 import subprocess
+import time
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import feedparser
+import imaplib
+import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -65,7 +72,21 @@ DEFAULT_SETTINGS = {
         "show_calendar": True,
         "show_packages": True,
     },
-    "news": {"predefined_sources": ["https://example.com/rss"], "custom_sources": []},
+    "news": {
+        "predefined_sources": ["https://example.com/rss"],
+        "custom_sources": [],
+        "refresh_minutes": 5,
+        "latest_limit": 5,
+        "newsapi_key": "",
+    },
+    "email": {
+        "host": "",
+        "port": 993,
+        "user": "",
+        "password": "",
+        "folder": "INBOX",
+        "ssl": True,
+    },
     "calendar": {
         "google": {
             "enabled": False,
@@ -105,6 +126,7 @@ def read_data(data_path):
             "todos": [],
             "calendar": [],
             "packages": [],
+            "emails": [],
         },
     )
 
@@ -149,6 +171,202 @@ def is_logged_in(settings):
 def requires_display_login(settings):
     return bool(settings.get("auth", {}).get("require_login_for_display", False))
 
+NEWS_CACHE = {"items": [], "last_fetch": 0.0}
+EMAIL_CACHE = {"items": [], "last_fetch": 0.0}
+
+
+def _clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def _normalize_news_item(title, source, link, published):
+    return {
+        "title": title.strip() if title else "Untitled",
+        "source": source.strip() if source else "Unknown",
+        "link": link or "",
+        "published": published or "",
+    }
+
+
+def _fetch_rss_items(url):
+    items = []
+    try:
+        feed = feedparser.parse(url)
+    except Exception:
+        return items
+    source_title = feed.feed.get("title") if hasattr(feed, "feed") else None
+    for entry in feed.entries[:20]:
+        title = entry.get("title", "")
+        link = entry.get("link", "")
+        published = entry.get("published", "") or entry.get("updated", "")
+        items.append(_normalize_news_item(title, source_title or urlparse(url).netloc, link, published))
+    return items
+
+
+def _normalize_source_url(url):
+    if "github.com/" in url and "/blob/" in url:
+        return url.replace("github.com/", "raw.githubusercontent.com/").replace("/blob/", "/")
+    return url
+
+
+def _extract_opml_sources(content):
+    sources = []
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return sources
+    for outline in root.iter("outline"):
+        xml_url = outline.attrib.get("xmlUrl") or outline.attrib.get("url")
+        if xml_url:
+            sources.append(xml_url)
+    return sources
+
+
+def _expand_sources(sources):
+    expanded = []
+    for source in sources:
+        normalized = _normalize_source_url(source)
+        if normalized.lower().endswith(".opml"):
+            try:
+                resp = requests.get(normalized, timeout=8)
+                if resp.ok:
+                    expanded.extend(_extract_opml_sources(resp.text))
+                    continue
+            except Exception:
+                pass
+        expanded.append(normalized)
+    return expanded
+
+
+def _get_location_country_code():
+    try:
+        resp = requests.get("https://ipapi.co/json/", timeout=5)
+        if resp.ok:
+            data = resp.json()
+            return data.get("country_code")
+    except Exception:
+        return None
+    return None
+
+
+def _fetch_newsapi_items(api_key, limit):
+    if not api_key:
+        return []
+    country = _get_location_country_code() or "us"
+    params = {
+        "apiKey": api_key,
+        "country": country.lower(),
+        "pageSize": limit,
+    }
+    try:
+        resp = requests.get("https://newsapi.org/v2/top-headlines", params=params, timeout=8)
+        if not resp.ok:
+            return []
+        payload = resp.json()
+    except Exception:
+        return []
+    items = []
+    for article in payload.get("articles", [])[:limit]:
+        title = article.get("title", "")
+        source = (article.get("source") or {}).get("name", "NewsAPI")
+        link = article.get("url", "")
+        published = article.get("publishedAt", "")
+        items.append(_normalize_news_item(title, source, link, published))
+    return items
+
+
+def _dedupe_news(items):
+    seen = set()
+    output = []
+    for item in items:
+        key = (item.get("title", "").strip().lower(), item.get("source", "").strip().lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output
+
+
+def _refresh_news(settings):
+    news_settings = settings.get("news", {})
+    refresh_minutes = int(news_settings.get("refresh_minutes", 5) or 5)
+    refresh_minutes = _clamp(refresh_minutes, 1, 15)
+    now = time.time()
+    if NEWS_CACHE["items"] and now - NEWS_CACHE["last_fetch"] < refresh_minutes * 60:
+        return NEWS_CACHE["items"]
+
+    sources = []
+    sources.extend(news_settings.get("predefined_sources", []))
+    sources.extend(news_settings.get("custom_sources", []))
+    sources = [s.strip() for s in sources if s.strip()]
+
+    items = []
+    for source in _expand_sources(sources):
+        items.extend(_fetch_rss_items(source))
+
+    latest_limit = int(news_settings.get("latest_limit", 5) or 5)
+    latest_limit = _clamp(latest_limit, 5, 10)
+    items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
+
+    items = _dedupe_news(items)
+    NEWS_CACHE["items"] = items
+    NEWS_CACHE["last_fetch"] = now
+    return items
+
+
+def _fetch_emails(settings):
+    email_settings = settings.get("email", {})
+    host = email_settings.get("host")
+    user = email_settings.get("user")
+    password = email_settings.get("password")
+    if not host or not user or not password:
+        return []
+    port = int(email_settings.get("port", 993) or 993)
+    folder = email_settings.get("folder", "INBOX")
+    use_ssl = bool(email_settings.get("ssl", True))
+    try:
+        if use_ssl:
+            client = imaplib.IMAP4_SSL(host, port)
+        else:
+            client = imaplib.IMAP4(host, port)
+        client.login(user, password)
+        client.select(folder, readonly=True)
+        status, data = client.search(None, "ALL")
+        if status != "OK":
+            return []
+        ids = data[0].split()
+        latest_ids = ids[-5:] if len(ids) > 5 else ids
+        emails = []
+        for msg_id in reversed(latest_ids):
+            status, msg_data = client.fetch(msg_id, "(BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])")
+            if status != "OK":
+                continue
+            raw = msg_data[0][1].decode("utf-8", errors="replace")
+            subject = ""
+            sender = ""
+            date_str = ""
+            for line in raw.splitlines():
+                if line.lower().startswith("subject:"):
+                    subject = line.split(":", 1)[1].strip()
+                elif line.lower().startswith("from:"):
+                    sender = line.split(":", 1)[1].strip()
+                elif line.lower().startswith("date:"):
+                    date_str = line.split(":", 1)[1].strip()
+            emails.append({"subject": subject or "(no subject)", "from": sender, "date": date_str})
+        client.logout()
+        return emails
+    except Exception:
+        return []
+
+
+def _refresh_emails(settings):
+    now = time.time()
+    if EMAIL_CACHE["items"] and now - EMAIL_CACHE["last_fetch"] < 60:
+        return EMAIL_CACHE["items"]
+    items = _fetch_emails(settings)
+    EMAIL_CACHE["items"] = items
+    EMAIL_CACHE["last_fetch"] = now
+    return items
 
 @app.route("/")
 def index():
@@ -156,9 +374,15 @@ def index():
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
+    data["news"] = _refresh_news(settings)
+    data["emails"] = _refresh_emails(settings)
     display = settings.get("display", {})
     return render_template(
-        "index.html", data=data, display=display, ip_address=get_ip_address()
+        "index.html",
+        data=data,
+        display=display,
+        ip_address=get_ip_address(),
+        news_refresh_minutes=settings.get("news", {}).get("refresh_minutes", 5),
     )
 
 
@@ -167,7 +391,10 @@ def api_data():
     settings = load_settings()
     if requires_display_login(settings) and not is_logged_in(settings):
         return jsonify({"error": "unauthorized"}), 401
-    return jsonify(read_data(settings.get("data", {}).get("data_path", env["data_path"])))
+    data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
+    data["news"] = _refresh_news(settings)
+    data["emails"] = _refresh_emails(settings)
+    return jsonify(data)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -240,6 +467,24 @@ def settings():
         custom_sources = [line.strip() for line in custom_raw.splitlines() if line.strip()]
         news["predefined_sources"] = predefined_sources
         news["custom_sources"] = custom_sources
+        news_refresh = int(request.form.get("news_refresh_minutes", "5") or 5)
+        news["refresh_minutes"] = _clamp(news_refresh, 1, 15)
+        news_limit = int(request.form.get("news_latest_limit", "5") or 5)
+        news["latest_limit"] = _clamp(news_limit, 5, 10)
+        newsapi_key = request.form.get("newsapi_key", "").strip()
+        if newsapi_key:
+            news["newsapi_key"] = newsapi_key
+
+        email = current.setdefault("email", {})
+        email["host"] = request.form.get("email_host", "").strip()
+        email_port = request.form.get("email_port", "993").strip()
+        email["port"] = int(email_port) if email_port.isdigit() else 993
+        email["user"] = request.form.get("email_user", "").strip()
+        email_password = request.form.get("email_password", "").strip()
+        if email_password:
+            email["password"] = email_password
+        email["folder"] = request.form.get("email_folder", "INBOX").strip() or "INBOX"
+        email["ssl"] = bool(request.form.get("email_ssl"))
 
         calendar = current.setdefault("calendar", {})
         google = calendar.setdefault("google", {})

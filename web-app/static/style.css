@@ -68,6 +68,34 @@ section {
   min-height: 140px;
 }
 
+.news-list,
+.email-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.news-item,
+.email-item {
+  display: none;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.news-title,
+.email-subject {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.news-source,
+.email-from {
+  display: block;
+  font-size: 0.9rem;
+  color: #5f6b7a;
+}
+
 .login {
   max-width: 320px;
   margin: 4rem auto;
