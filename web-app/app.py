@@ -171,6 +171,11 @@ def is_logged_in(settings):
 def requires_display_login(settings):
     return bool(settings.get("auth", {}).get("require_login_for_display", False))
 
+def is_legacy_client():
+    ua = (request.headers.get("User-Agent") or "").lower()
+    legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
+    return any(token in ua for token in legacy_tokens)
+
 NEWS_CACHE = {"items": [], "last_fetch": 0.0}
 EMAIL_CACHE = {"items": [], "last_fetch": 0.0}
 WEATHER_CACHE = {"payload": {}, "last_fetch": 0.0}
@@ -476,8 +481,9 @@ def index():
     data["news"] = _refresh_news(settings)
     data["emails"] = _refresh_emails(settings)
     display = settings.get("display", {})
+    template_name = "index_legacy.html" if is_legacy_client() else "index.html"
     return render_template(
-        "index.html",
+        template_name,
         data=data,
         display=display,
         ip_address=get_ip_address(),

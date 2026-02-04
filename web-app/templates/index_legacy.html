@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShelfCast</title>
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 14px; margin: 8px; }
+      h1 { font-size: 20px; margin: 6px 0; }
+      h2 { font-size: 16px; margin: 10px 0 4px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th, td { border: 1px solid #333; padding: 4px; vertical-align: top; }
+      .muted { color: #555; font-size: 12px; }
+      img.icon { width: 20px; height: 20px; vertical-align: middle; }
+      ul { padding-left: 16px; margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>ShelfCast</h1>
+    <div class="muted">Host IP: {{ ip_address }}</div>
+
+    {% if display.show_weather %}
+    <h2>Weather</h2>
+    <table>
+      <tr>
+        <th>Now</th>
+        <th>Forecast</th>
+      </tr>
+      <tr>
+        <td>
+          <img class="icon" src="{{ url_for('static', filename='icons/' ~ (data.weather.current_icon or 'cloudy') ~ '.gif') }}" alt="icon" />
+          {% if data.weather.current_temp_c is not none %}
+            {{ data.weather.current_temp_c }}°C
+          {% else %}
+            --
+          {% endif %}
+          <div class="muted">{{ data.weather.location or "Local" }}</div>
+        </td>
+        <td>
+          <table>
+            <tr>
+              <th>Date</th>
+              <th>Icon</th>
+              <th>High/Low</th>
+            </tr>
+            {% for item in data.weather.forecast %}
+            <tr>
+              <td>{{ item.date }}</td>
+              <td>
+                <img class="icon" src="{{ url_for('static', filename='icons/' ~ (item.icon or 'cloudy') ~ '.gif') }}" alt="icon" />
+              </td>
+              <td>
+                {% if item.high_c is not none %}{{ item.high_c }}°{% else %}--{% endif %}
+                /
+                {% if item.low_c is not none %}{{ item.low_c }}°{% else %}--{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr>
+    </table>
+    {% endif %}
+
+    {% if display.show_news %}
+    <h2>News</h2>
+    <table>
+      <tr>
+        <th>Title</th>
+        <th>Source</th>
+      </tr>
+      {% for item in data.news %}
+      <tr>
+        <td>{{ item.title }}</td>
+        <td>{{ item.source }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if data.emails %}
+    <h2>Emails</h2>
+    <table>
+      <tr>
+        <th>Subject</th>
+        <th>From</th>
+      </tr>
+      {% for item in data.emails %}
+      <tr>
+        <td>{{ item.subject }}</td>
+        <td>{{ item.from }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if display.show_todos %}
+    <h2>Todos</h2>
+    <ul>
+      {% for item in data.todos %}
+      <li>{{ item.title }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if display.show_calendar %}
+    <h2>Calendar</h2>
+    <ul>
+      {% for item in data.calendar %}
+      <li>{{ item.title }} - {{ item.time }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if display.show_packages %}
+    <h2>Packages</h2>
+    <ul>
+      {% for item in data.packages %}
+      <li>{{ item.carrier }} - {{ item.status }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </body>
+</html>
