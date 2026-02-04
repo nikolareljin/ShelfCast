@@ -66,10 +66,10 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
-        // Cache and storage settings: disable caching and offline storage to always load fresh content
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // Cache and storage settings: use default caching and enable DOM storage
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setAppCacheEnabled(false);
-        settings.setDomStorageEnabled(false);
+        settings.setDomStorageEnabled(true);
 
         // Disable plugins if supported (method removed in newer SDKs)
         disableWebViewPlugins(settings);

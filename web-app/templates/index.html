@@ -160,26 +160,31 @@
     </main>
   </body>
   <script>
-    function rotateList(selector) {
+    const rotationTimers = {};
+
+    function startRotation(selector) {
       const list = document.querySelector(selector);
       if (!list) return;
       const items = list.querySelectorAll("li");
       if (items.length <= 1) return;
+      if (rotationTimers[selector]) {
+        clearInterval(rotationTimers[selector]);
+      }
       let index = 0;
       items.forEach((item, idx) => {
         item.style.display = idx === 0 ? "block" : "none";
       });
       const minutes = parseInt(list.dataset.rotateMinutes || "5", 10);
       const interval = Math.max(1, minutes) * 60 * 1000;
-      setInterval(() => {
+      rotationTimers[selector] = setInterval(() => {
         items[index].style.display = "none";
         index = (index + 1) % items.length;
         items[index].style.display = "block";
       }, interval);
     }
 
-    rotateList(".news-list");
-    rotateList(".email-list");
+    startRotation(".news-list");
+    startRotation(".email-list");
 
     function setIconClass(node) {
       const icon = node.dataset.icon || "cloudy";
@@ -213,6 +218,7 @@
             li.appendChild(sourceSpan);
             list.appendChild(li);
           });
+          startRotation(".news-list");
 
           const weather = payload.weather || {};
           const currentIcon = document.querySelector(".weather-icon");
@@ -277,6 +283,7 @@
             li.appendChild(fromSpan);
             list.appendChild(li);
           });
+          startRotation(".email-list");
         })
         .catch((error) => {
           console.warn("Failed to refresh emails", error);

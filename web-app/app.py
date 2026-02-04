@@ -4,11 +4,12 @@ import socket
 import subprocess
 import time
 import threading
+import ipaddress
 from datetime import datetime
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
 from urllib.parse import urlparse
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as DefusedET
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -219,10 +220,45 @@ def _normalize_news_item(title, source, link, published):
     }
 
 
+def _is_safe_url(url):
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.hostname:
+        return False
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        ip = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_multicast
+        ):
+            return False
+    return True
+
+
 def _fetch_rss_items(url):
     items = []
+    if not _is_safe_url(url):
+        return items
     try:
-        feed = feedparser.parse(url)
+        resp = requests.get(url, timeout=8)
+        if not resp.ok:
+            return items
+        feed = feedparser.parse(resp.text)
     except Exception:
         return items
     source_title = feed.feed.get("title") if hasattr(feed, "feed") else None
@@ -243,8 +279,8 @@ def _normalize_source_url(url):
 def _extract_opml_sources(content):
     sources = []
     try:
-        root = ET.fromstring(content)
-    except ET.ParseError:
+        root = DefusedET.fromstring(content)
+    except DefusedET.ParseError:
         return sources
     for outline in root.iter("outline"):
         xml_url = outline.attrib.get("xmlUrl") or outline.attrib.get("url")
@@ -257,6 +293,8 @@ def _expand_sources(sources):
     expanded = []
     for source in sources:
         normalized = _normalize_source_url(source)
+        if not _is_safe_url(normalized):
+            continue
         if normalized.lower().endswith(".opml"):
             try:
                 resp = requests.get(normalized, timeout=8)
@@ -389,7 +427,10 @@ def _refresh_weather():
 
 def _weather_background_loop():
     while True:
-        _refresh_weather()
+        try:
+            _refresh_weather()
+        except Exception:
+            pass
         time.sleep(900)
 
 
@@ -650,9 +691,17 @@ def settings():
         custom_sources = [line.strip() for line in custom_raw.splitlines() if line.strip()]
         news["predefined_sources"] = predefined_sources
         news["custom_sources"] = custom_sources
-        news_refresh = int(request.form.get("news_refresh_minutes", "5") or 5)
+        news_refresh_raw = (request.form.get("news_refresh_minutes", "5") or "5").strip()
+        try:
+            news_refresh = int(news_refresh_raw)
+        except ValueError:
+            news_refresh = 5
         news["refresh_minutes"] = _clamp(news_refresh, 1, 15)
-        news_limit = int(request.form.get("news_latest_limit", "5") or 5)
+        news_limit_raw = (request.form.get("news_latest_limit", "5") or "5").strip()
+        try:
+            news_limit = int(news_limit_raw)
+        except ValueError:
+            news_limit = 5
         news["latest_limit"] = _clamp(news_limit, 5, 10)
         newsapi_key = request.form.get("newsapi_key", "").strip()
         if request.form.get("newsapi_key_clear"):
