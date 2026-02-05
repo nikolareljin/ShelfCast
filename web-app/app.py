@@ -139,9 +139,10 @@ def _get_csrf_token():
     return token
 
 
-def _validate_csrf(form_token):
-    session_token = session.get("csrf_token")
-    return bool(form_token) and bool(session_token) and secrets.compare_digest(form_token, session_token)
+def _validate_csrf():
+    form_token = request.form.get("csrf_token", "")
+    session_token = session.get("csrf_token", "")
+    return bool(form_token) and bool(session_token) and form_token == session_token
 
 
 def read_data(data_path):
@@ -730,12 +731,11 @@ def _fetch_emails(settings):
                 {"subject": subject or "(no subject)", "from": sender, "date": date_str}
             )
         return emails
-    except Exception:
-        # Avoid logging full exception details to prevent credential leakage.
+    except Exception as exc:
         try:
-            app.logger.warning("Email fetch failed")
+            app.logger.exception("Email fetch failed")
         except Exception:
-            pass
+            print(f"Email fetch failed: {exc}", flush=True)
         return []
     finally:
         if client is not None:
@@ -969,6 +969,10 @@ def settings():
 
         save_settings(current)
         write_json(env["system_changes_path"], {"static_ip": static_ip})
+        NEWS_CACHE.set("items", [])
+        NEWS_CACHE.set("last_fetch", 0.0)
+        EMAIL_CACHE.set("items", [])
+        EMAIL_CACHE.set("last_fetch", 0.0)
 
         return redirect(url_for("settings"))
 
