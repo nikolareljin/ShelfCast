@@ -969,10 +969,6 @@ def settings():
 
         save_settings(current)
         write_json(env["system_changes_path"], {"static_ip": static_ip})
-        NEWS_CACHE.set("items", [])
-        NEWS_CACHE.set("last_fetch", 0.0)
-        EMAIL_CACHE.set("items", [])
-        EMAIL_CACHE.set("last_fetch", 0.0)
 
         return redirect(url_for("settings"))
 
