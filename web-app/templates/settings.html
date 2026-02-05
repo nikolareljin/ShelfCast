@@ -60,6 +60,10 @@
 
         <section>
           <h2>News sources</h2>
+          <p class="note">
+            NewsAPI keys are stored in plaintext in the local settings file.
+            Set `SHELFCAST_NEWSAPI_KEY` to override the stored key.
+          </p>
           <label>
             Predefined RSS feeds (one per line)
             <textarea name="news_predefined_sources" rows="4">{% for source in settings.news.predefined_sources %}{{ source }}
@@ -89,15 +93,26 @@
         </section>
 
         <section>
+          <h2>Weather</h2>
+          <label>
+            <input type="checkbox" name="weather_use_geolocation" {% if settings.weather.use_geolocation %}checked{% endif %} />
+            Use IP-based geolocation for weather (calls ipapi.co)
+          </label>
+        </section>
+
+        <section>
           <h2>Email (IMAP)</h2>
-          <p class="note">Credentials are stored in plaintext in the local settings file and are not encrypted.</p>
+          <p class="note">
+            Credentials are stored in plaintext in the local settings file and are not encrypted.
+            Set `SHELFCAST_EMAIL_PASSWORD` to override the stored password.
+          </p>
           <label>
             Host
             <input type="text" name="email_host" value="{{ settings.email.host }}" />
           </label>
           <label>
             Port
-            <input type="number" name="email_port" value="{{ settings.email.port }}" />
+            <input type="number" name="email_port" min="1" max="65535" value="{{ settings.email.port }}" />
           </label>
           <label>
             Username
@@ -118,6 +133,14 @@
           <label>
             Use SSL
             <input type="checkbox" name="email_ssl" {% if settings.email.ssl %}checked{% endif %} />
+          </label>
+          <label>
+            <input type="checkbox" name="email_require_login_for_display" {% if settings.email.require_login_for_display %}checked{% endif %} />
+            Require login to show emails on dashboard
+          </label>
+          <label>
+            Email refresh (minutes, 1-15)
+            <input type="number" name="email_refresh_minutes" min="1" max="15" value="{{ settings.email.refresh_minutes }}" />
           </label>
         </section>
 

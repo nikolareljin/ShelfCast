@@ -14,6 +14,9 @@
     "show_calendar": true,
     "show_packages": true
   },
+  "weather": {
+    "use_geolocation": false
+  },
   "news": {
     "predefined_sources": [
       "https://example.com/rss"
@@ -29,7 +32,9 @@
     "user": "",
     "password": "",
     "folder": "INBOX",
-    "ssl": true
+    "ssl": true,
+    "require_login_for_display": true,
+    "refresh_minutes": 1
   },
   "calendar": {
     "google": {

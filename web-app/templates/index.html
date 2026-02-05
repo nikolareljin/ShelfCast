@@ -58,6 +58,7 @@
           </div>
         </div>
         <div class="weather-forecast">
+          {% if data.weather.forecast %}
           {% for item in data.weather.forecast %}
           <div class="forecast-item">
             <div class="forecast-date">{{ item.date }}</div>
@@ -93,6 +94,9 @@
             </div>
           </div>
           {% endfor %}
+          {% else %}
+          <div class="forecast-empty">No forecast available.</div>
+          {% endif %}
         </div>
       </section>
       {% endif %}
@@ -125,7 +129,7 @@
       {% if display.show_emails and data.emails %}
       <section class="card">
         <h2>Emails</h2>
-        <ul class="email-list" data-rotate-minutes="1">
+        <ul class="email-list" data-rotate-minutes="{{ email_refresh_minutes }}">
           {% for item in data.emails %}
           <li class="email-item">
             <span class="email-subject">{{ item.subject }}</span>
@@ -160,139 +164,189 @@
     </main>
   </body>
   <script>
-    const rotationTimers = {};
+    var rotationTimers = {};
+    var rotationState = {};
+    var validIcons = {
+      clear: true,
+      partly: true,
+      cloudy: true,
+      fog: true,
+      drizzle: true,
+      rain: true,
+      snow: true,
+      thunder: true,
+    };
 
     function startRotation(selector) {
-      const list = document.querySelector(selector);
-      if (!list) return;
+      var list = document.querySelector(selector);
       if (rotationTimers[selector]) {
         clearInterval(rotationTimers[selector]);
+        rotationTimers[selector] = null;
       }
-      const items = list.querySelectorAll("li");
+      rotationState[selector] = { index: 0 };
+      if (!list) return;
+      var items = list.querySelectorAll("li");
+      if (!items.length) return;
+      for (var i = 0; i < items.length; i += 1) {
+        items[i].style.display = i === 0 ? "block" : "none";
+      }
       if (items.length <= 1) return;
-      let index = 0;
-      items.forEach((item, idx) => {
-        item.style.display = idx === 0 ? "block" : "none";
-      });
-      const minutes = parseInt(list.dataset.rotateMinutes || "5", 10);
-      const interval = Math.max(1, minutes) * 60 * 1000;
-      rotationTimers[selector] = setInterval(() => {
-        const currentItems = list.querySelectorAll("li");
-        if (currentItems.length <= 1) return;
-        currentItems[index].style.display = "none";
-        index = (index + 1) % currentItems.length;
-        currentItems[index].style.display = "block";
+      var minutes = parseInt(list.getAttribute("data-rotate-minutes") || "5", 10) || 5;
+      var interval = Math.max(1, minutes) * 60 * 1000;
+      rotationTimers[selector] = setInterval(function () {
+        var currentList = document.querySelector(selector);
+        if (!currentList) return;
+        var currentItems = currentList.querySelectorAll("li");
+        if (!currentItems.length) return;
+        var state = rotationState[selector] || { index: 0 };
+        var nextIndex = state.index % currentItems.length;
+        for (var i = 0; i < currentItems.length; i += 1) {
+          currentItems[i].style.display = i === nextIndex ? "block" : "none";
+        }
+        state.index = (nextIndex + 1) % currentItems.length;
+        rotationState[selector] = state;
       }, interval);
     }
 
     startRotation(".news-list");
     startRotation(".email-list");
 
-    function setIconClass(node) {
-      const icon = node.dataset.icon || "cloudy";
-      node.classList.add(`icon-${icon}`);
+    function normalizeIcon(icon) {
+      if (!validIcons[icon]) return "cloudy";
+      return icon;
     }
 
-    const iconNodes = document.querySelectorAll(".forecast-icon, .weather-icon");
-    for (let i = 0; i < iconNodes.length; i += 1) {
+    function setIconClass(node) {
+      var icon = normalizeIcon(node.getAttribute("data-icon") || "cloudy");
+      node.classList.add("icon-" + icon);
+    }
+
+    var iconNodes = document.querySelectorAll(".forecast-icon, .weather-icon");
+    for (var i = 0; i < iconNodes.length; i += 1) {
       setIconClass(iconNodes[i]);
     }
 
-    const refreshMinutes = parseInt(
-      document.querySelector(".news-list")?.dataset.rotateMinutes || "5",
-      10
-    );
-    setInterval(() => {
-      fetch("/api/data")
-        .then((response) => response.json())
-        .then((payload) => {
-          const list = document.querySelector(".news-list");
-          if (!list || !payload.news) return;
-          list.innerHTML = "";
-          payload.news.forEach((item, index) => {
-            const li = document.createElement("li");
-            li.className = "news-item";
-            li.style.display = index === 0 ? "block" : "none";
-            const titleSpan = document.createElement("span");
-            titleSpan.className = "news-title";
-            titleSpan.textContent = item.title ?? "";
-            const sourceSpan = document.createElement("span");
-            sourceSpan.className = "news-source";
-            sourceSpan.textContent = item.source ?? "";
-            li.appendChild(titleSpan);
-            li.appendChild(sourceSpan);
-            list.appendChild(li);
-          });
-          startRotation(".news-list");
+    function handleUnauthorized(response) {
+      if (response.status === 401) {
+        window.location = "/login";
+        return true;
+      }
+      return false;
+    }
 
-          const weather = payload.weather || {};
-          const currentIcon = document.querySelector(".weather-icon");
-          if (currentIcon && weather.current_icon) {
-            currentIcon.className = "weather-icon";
-            currentIcon.dataset.icon = weather.current_icon;
-            setIconClass(currentIcon);
-          }
-          const tempEl = document.querySelector(".weather-temp");
-          if (tempEl && weather.current_temp_c !== undefined && weather.current_temp_c !== null) {
-            tempEl.textContent = `${weather.current_temp_c}°C`;
-          }
-          const locEl = document.querySelector(".weather-loc");
-          if (locEl && weather.location) {
-            locEl.textContent = weather.location;
-          }
-          const forecastNodes = document.querySelectorAll(".forecast-item");
-          if (weather.forecast && forecastNodes.length) {
-            weather.forecast.forEach((item, idx) => {
-              const node = forecastNodes[idx];
-              if (!node) return;
-              const iconNode = node.querySelector(".forecast-icon");
-              if (iconNode && item.icon) {
-                iconNode.className = "forecast-icon";
-                iconNode.dataset.icon = item.icon;
-                setIconClass(iconNode);
-              }
-              const tempNode = node.querySelector(".forecast-temp");
-              if (tempNode) {
-                tempNode.textContent = `${item.high_c ?? "--"}°/${item.low_c ?? "--"}°`;
-              }
-              const dateNode = node.querySelector(".forecast-date");
-              if (dateNode && item.date) {
-                dateNode.textContent = item.date;
-              }
+    function getRotateMinutes(selector, fallback) {
+      var list = document.querySelector(selector);
+      if (!list) return fallback;
+      return list.getAttribute("data-rotate-minutes") || fallback;
+    }
+
+    var refreshMinutes = parseInt(getRotateMinutes(".news-list", "5"), 10) || 5;
+    if (document.querySelector(".news-list")) {
+      setInterval(function () {
+        fetch("/api/data")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var list = document.querySelector(".news-list");
+            if (!list || !payload.news) return;
+            list.innerHTML = "";
+            payload.news.forEach(function (item, index) {
+              var li = document.createElement("li");
+              li.className = "news-item";
+              li.style.display = index === 0 ? "block" : "none";
+              var titleSpan = document.createElement("span");
+              titleSpan.className = "news-title";
+              titleSpan.textContent = item.title || "";
+              var sourceSpan = document.createElement("span");
+              sourceSpan.className = "news-source";
+              sourceSpan.textContent = item.source || "";
+              li.appendChild(titleSpan);
+              li.appendChild(sourceSpan);
+              list.appendChild(li);
             });
-          }
-        })
-        .catch((error) => {
-          console.warn("Failed to refresh news", error);
-        });
-    }, Math.max(1, refreshMinutes) * 60 * 1000);
+            startRotation(".news-list");
 
-    setInterval(() => {
-      fetch("/api/data")
-        .then((response) => response.json())
-        .then((payload) => {
-          const list = document.querySelector(".email-list");
-          if (!list || !payload.emails) return;
-          list.innerHTML = "";
-          payload.emails.forEach((item, index) => {
-            const li = document.createElement("li");
-            li.className = "email-item";
-            li.style.display = index === 0 ? "block" : "none";
-            const subjectSpan = document.createElement("span");
-            subjectSpan.className = "email-subject";
-            subjectSpan.textContent = item.subject ?? "";
-            const fromSpan = document.createElement("span");
-            fromSpan.className = "email-from";
-            fromSpan.textContent = item.from ?? "";
-            li.appendChild(subjectSpan);
-            li.appendChild(fromSpan);
-            list.appendChild(li);
+            var weather = payload.weather || {};
+            var currentIcon = document.querySelector(".weather-icon");
+            if (currentIcon && weather.current_icon) {
+              currentIcon.className = "weather-icon";
+              currentIcon.setAttribute("data-icon", normalizeIcon(weather.current_icon));
+              setIconClass(currentIcon);
+            }
+            var tempEl = document.querySelector(".weather-temp");
+            if (tempEl && weather.current_temp_c !== undefined && weather.current_temp_c !== null) {
+              tempEl.textContent = weather.current_temp_c + "°C";
+            }
+            var locEl = document.querySelector(".weather-loc");
+            if (locEl && weather.location) {
+              locEl.textContent = weather.location;
+            }
+            var forecastNodes = document.querySelectorAll(".forecast-item");
+            if (weather.forecast && forecastNodes.length) {
+              weather.forecast.forEach(function (item, idx) {
+                var node = forecastNodes[idx];
+                if (!node) return;
+                var iconNode = node.querySelector(".forecast-icon");
+                if (iconNode && item.icon) {
+                  iconNode.className = "forecast-icon";
+                  iconNode.setAttribute("data-icon", normalizeIcon(item.icon));
+                  setIconClass(iconNode);
+                }
+                var tempNode = node.querySelector(".forecast-temp");
+                if (tempNode) {
+                  var high = item.high_c !== undefined && item.high_c !== null ? item.high_c : "--";
+                  var low = item.low_c !== undefined && item.low_c !== null ? item.low_c : "--";
+                  tempNode.textContent = high + "°/" + low + "°";
+                }
+                var dateNode = node.querySelector(".forecast-date");
+                if (dateNode && item.date) {
+                  dateNode.textContent = item.date;
+                }
+              });
+            }
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh news", error);
           });
-          startRotation(".email-list");
-        })
-        .catch((error) => {
-          console.warn("Failed to refresh emails", error);
-        });
-    }, 60 * 1000);
+      }, Math.max(1, refreshMinutes) * 60 * 1000);
+    }
+
+    if (document.querySelector(".email-list")) {
+      var emailRefreshMinutes = parseInt(getRotateMinutes(".email-list", "1"), 10) || 1;
+      setInterval(function () {
+        fetch("/api/data")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var list = document.querySelector(".email-list");
+            if (!list || !payload.emails) return;
+            list.innerHTML = "";
+            payload.emails.forEach(function (item, index) {
+              var li = document.createElement("li");
+              li.className = "email-item";
+              li.style.display = index === 0 ? "block" : "none";
+              var subjectSpan = document.createElement("span");
+              subjectSpan.className = "email-subject";
+              subjectSpan.textContent = item.subject || "";
+              var fromSpan = document.createElement("span");
+              fromSpan.className = "email-from";
+              fromSpan.textContent = item.from || "";
+              li.appendChild(subjectSpan);
+              li.appendChild(fromSpan);
+              list.appendChild(li);
+            });
+            startRotation(".email-list");
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh emails", error);
+          });
+      }, Math.max(1, emailRefreshMinutes) * 60 * 1000);
+    }
   </script>
 </html>
