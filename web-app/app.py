@@ -574,12 +574,14 @@ def _start_weather_background():
         if _WEATHER_THREAD and _WEATHER_THREAD.is_alive():
             return
         if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+            if _WEATHER_THREAD and _WEATHER_THREAD.is_alive():
+                return
             _WEATHER_STOP_EVENT.clear()
             thread = threading.Thread(
                 target=_weather_background_loop, args=(_WEATHER_STOP_EVENT,), daemon=True
             )
-            thread.start()
             _WEATHER_THREAD = thread
+            thread.start()
 
 
 @app.before_request
