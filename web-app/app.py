@@ -209,6 +209,10 @@ def _is_default_password(settings):
         return False
     return auth.get("admin_password") == "change-me"
 
+
+def _must_change_default_password(settings):
+    return bool(session.get("force_password_change")) or _is_default_password(settings)
+
 def is_legacy_client():
     ua = (request.headers.get("User-Agent") or "").lower()
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
@@ -786,6 +790,8 @@ def index():
     settings = load_settings()
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
+    if is_logged_in(settings) and _must_change_default_password(settings):
+        return redirect(url_for("settings"))
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
     data["weather"] = _refresh_weather(settings) or data.get("weather", {})
     data["news"] = _refresh_news(settings)
@@ -807,6 +813,8 @@ def api_data():
     settings = load_settings()
     if requires_display_login(settings) and not is_logged_in(settings):
         return jsonify({"error": "unauthorized"}), 401
+    if is_logged_in(settings) and _must_change_default_password(settings):
+        return jsonify({"error": "password_change_required"}), 403
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
     data["weather"] = _refresh_weather(settings) or data.get("weather", {})
     data["news"] = _refresh_news(settings)
@@ -832,6 +840,10 @@ def login():
             password_ok = plaintext_password == password
         if username == auth.get("admin_user") and password_ok:
             session["user"] = username
+            if _is_default_password(settings):
+                session["force_password_change"] = True
+                return redirect(url_for("settings"))
+            session.pop("force_password_change", None)
             return redirect(url_for("index"))
         return render_template(
             "login.html",
@@ -864,6 +876,8 @@ def settings():
     current = load_settings()
     if not is_logged_in(current):
         return redirect(url_for("login"))
+    if not _is_default_password(current):
+        session.pop("force_password_change", None)
 
     if request.method == "POST":
         if not _validate_csrf(request.form.get("csrf_token")):
@@ -881,9 +895,20 @@ def settings():
         auth["require_login_for_display"] = bool(request.form.get("require_login_for_display"))
 
         new_password = request.form.get("admin_password", "")
+        force_password_change = _must_change_default_password(current)
+        if force_password_change and not new_password:
+            return render_template(
+                "settings.html",
+                settings=current,
+                csrf_token=_get_csrf_token(),
+                using_default_password=_is_default_password(current),
+                force_password_change=force_password_change,
+                password_required_error=True,
+            ), 400
         if new_password:
             auth["admin_password_hash"] = generate_password_hash(new_password)
             auth.pop("admin_password", None)
+            session.pop("force_password_change", None)
 
         data = current.setdefault("data", {})
         data_path = request.form.get("data_path", data.get("data_path", env["data_path"]))
@@ -989,6 +1014,7 @@ def settings():
         settings=current,
         csrf_token=_get_csrf_token(),
         using_default_password=_is_default_password(current),
+        force_password_change=_must_change_default_password(current),
     )
 
 

@@ -24,6 +24,12 @@
         {% if using_default_password %}
         <p class="note">Warning: the default admin password is still in use. Update it below.</p>
         {% endif %}
+        {% if force_password_change %}
+        <p class="note">Password change is required before dashboard access is restored.</p>
+        {% endif %}
+        {% if password_required_error %}
+        <p class="note">Set a new admin password to continue.</p>
+        {% endif %}
         <section>
           <h2>Admin</h2>
           <label>
@@ -36,7 +42,7 @@
           </label>
           <label>
             New password
-            <input type="password" name="admin_password" placeholder="Leave blank to keep" />
+            <input type="password" name="admin_password" {% if force_password_change %}required{% else %}placeholder="Leave blank to keep"{% endif %} />
           </label>
         </section>
 
