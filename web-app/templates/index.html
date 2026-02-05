@@ -126,7 +126,7 @@
       </section>
       {% endif %}
 
-      {% if data.emails %}
+      {% if display.show_emails and data.emails %}
       <section class="card">
         <h2>Emails</h2>
         <ul class="email-list" data-rotate-minutes="{{ email_refresh_minutes }}">
