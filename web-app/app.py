@@ -6,6 +6,7 @@ import time
 import threading
 import ipaddress
 import ssl
+import secrets
 from datetime import datetime
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -19,7 +20,7 @@ import feedparser
 import imaplib
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -127,6 +128,20 @@ def merge_settings(defaults, override):
         if key not in merged:
             merged[key] = value
     return merged
+
+
+def _get_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+def _validate_csrf():
+    form_token = request.form.get("csrf_token", "")
+    session_token = session.get("csrf_token", "")
+    return bool(form_token) and bool(session_token) and form_token == session_token
 
 
 def read_data(data_path):
@@ -788,6 +803,8 @@ def login():
     settings = load_settings()
     auth = settings.get("auth", {})
     if request.method == "POST":
+        if not _validate_csrf():
+            abort(400)
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         password_hash = auth.get("admin_password_hash", "")
@@ -801,9 +818,14 @@ def login():
             session["user"] = username
             return redirect(url_for("index"))
         return render_template(
-            "login.html", error="Invalid credentials", ip_address=get_ip_address()
+            "login.html",
+            error="Invalid credentials",
+            ip_address=get_ip_address(),
+            csrf_token=_get_csrf_token(),
         )
-    return render_template("login.html", ip_address=get_ip_address())
+    return render_template(
+        "login.html", ip_address=get_ip_address(), csrf_token=_get_csrf_token()
+    )
 
 
 @app.route("/onboarding")
@@ -824,6 +846,8 @@ def settings():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        if not _validate_csrf():
+            abort(400)
         auth = current.setdefault("auth", {})
         admin_user = request.form.get("admin_user", auth.get("admin_user", "admin")).strip()
         auth["admin_user"] = admin_user or auth.get("admin_user", "admin")
@@ -929,7 +953,9 @@ def settings():
 
         return redirect(url_for("settings"))
 
-    return render_template("settings.html", settings=current)
+    return render_template(
+        "settings.html", settings=current, csrf_token=_get_csrf_token()
+    )
 
 
 if __name__ == "__main__":
