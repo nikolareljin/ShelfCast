@@ -52,6 +52,10 @@
 
         <section>
           <h2>News sources</h2>
+          <p class="note">
+            NewsAPI keys are stored in plaintext in the local settings file.
+            Set `SHELFCAST_NEWSAPI_KEY` to override the stored key.
+          </p>
           <label>
             Predefined RSS feeds (one per line)
             <textarea name="news_predefined_sources" rows="4">{% for source in settings.news.predefined_sources %}{{ source }}
@@ -77,6 +81,14 @@
           <label>
             <input type="checkbox" name="newsapi_key_clear" />
             Clear stored NewsAPI key
+          </label>
+        </section>
+
+        <section>
+          <h2>Weather</h2>
+          <label>
+            <input type="checkbox" name="weather_use_geolocation" {% if settings.weather.use_geolocation %}checked{% endif %} />
+            Use IP-based geolocation for weather (calls ipapi.co)
           </label>
         </section>
 

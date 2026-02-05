@@ -5,6 +5,7 @@ import subprocess
 import time
 import threading
 import ipaddress
+import ssl
 from datetime import datetime
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -35,6 +36,7 @@ def load_env():
             "SHELFCAST_SYSTEM_CHANGES_PATH", "../config/system_changes.json"
         ),
         "email_password": os.environ.get("SHELFCAST_EMAIL_PASSWORD", ""),
+        "newsapi_key": os.environ.get("SHELFCAST_NEWSAPI_KEY", ""),
         "port": int(os.environ.get("SHELFCAST_PORT", "8080")),
     }
 
@@ -79,6 +81,7 @@ DEFAULT_SETTINGS = {
         "show_calendar": True,
         "show_packages": True,
     },
+    "weather": {"use_geolocation": False},
     "news": {
         "predefined_sources": ["https://example.com/rss"],
         "custom_sources": [],
@@ -210,13 +213,23 @@ NEWS_CACHE = ThreadSafeCache({"items": [], "last_fetch": 0.0})
 EMAIL_CACHE = ThreadSafeCache({"items": [], "last_fetch": 0.0})
 WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
-_WEATHER_THREAD_STARTED = False
+_WEATHER_THREAD = None
 _WEATHER_STOP_EVENT = threading.Event()
 _WEATHER_THREAD_LOCK = threading.Lock()
 _WEATHER_REFRESH_LOCK = threading.Lock()
 _LOCATION_LOCK = threading.Lock()
 _NEWS_REFRESH_LOCK = threading.Lock()
 _EMAIL_REFRESH_LOCK = threading.Lock()
+_VALID_WEATHER_ICONS = {
+    "clear",
+    "partly",
+    "cloudy",
+    "fog",
+    "drizzle",
+    "rain",
+    "snow",
+    "thunder",
+}
 
 
 def _clamp(value, minimum, maximum):
@@ -267,20 +280,34 @@ def _is_safe_url(url):
     return _resolved_ips_safe(parsed.hostname)
 
 
-def _safe_get(url, timeout=8):
+def _response_peer_ip(resp):
+    try:
+        connection = getattr(resp.raw, "_connection", None)
+        sock = getattr(connection, "sock", None)
+        if sock:
+            return sock.getpeername()[0]
+    except Exception:
+        return None
+    return None
+
+
+def _safe_get(url, timeout=8, params=None, headers=None):
     # Best-effort SSRF protection: validate before request and block redirects.
     if not _is_safe_url(url):
         return None
     parsed = urlparse(url)
     if not _resolved_ips_safe(parsed.hostname):
         return None
+    expected_url = requests.Request("GET", url, params=params).prepare().url
     try:
-        resp = requests.get(url, timeout=timeout, allow_redirects=False)
+        resp = requests.get(
+            url, timeout=timeout, allow_redirects=False, params=params, headers=headers
+        )
     except Exception:
         return None
     if getattr(resp, "is_redirect", False) or getattr(resp, "is_permanent_redirect", False):
         return None
-    if resp.url != url:
+    if resp.url != expected_url:
         return None
     final_parsed = urlparse(resp.url)
     if final_parsed.hostname != parsed.hostname:
@@ -289,6 +316,20 @@ def _safe_get(url, timeout=8):
         return None
     if not _is_safe_url(resp.url):
         return None
+    peer_ip = _response_peer_ip(resp)
+    if peer_ip:
+        try:
+            peer_addr = ipaddress.ip_address(peer_ip)
+        except ValueError:
+            return None
+        if (
+            peer_addr.is_private
+            or peer_addr.is_loopback
+            or peer_addr.is_link_local
+            or peer_addr.is_reserved
+            or peer_addr.is_multicast
+        ):
+            return None
     return resp
 
 
@@ -302,7 +343,7 @@ def _fetch_rss_items(url):
     except Exception:
         return items
     source_title = feed.feed.get("title") if hasattr(feed, "feed") else None
-    for entry in feed.entries[:20]:
+    for entry in getattr(feed, "entries", [])[:20]:
         title = entry.get("title", "")
         link = entry.get("link", "")
         published = entry.get("published", "") or entry.get("updated", "")
@@ -356,15 +397,17 @@ def _expand_sources(sources):
     return expanded
 
 
-def _get_location_cached():
+def _get_location_cached(allow_geolocation):
     with _LOCATION_LOCK:
         cached = LOCATION_CACHE.snapshot()
+        if not allow_geolocation:
+            return {}
         now = time.time()
         if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 6 * 60 * 60:
             return cached.get("payload")
         try:
-            resp = requests.get("https://ipapi.co/json/", timeout=5)
-            if resp.ok:
+            resp = _safe_get("https://ipapi.co/json/", timeout=5)
+            if resp and resp.ok:
                 payload = resp.json()
                 LOCATION_CACHE.set("payload", payload)
                 LOCATION_CACHE.set("last_fetch", now)
@@ -375,13 +418,15 @@ def _get_location_cached():
         return cached.get("payload", {})
 
 
-def _get_location_country_code():
-    data = _get_location_cached()
+def _get_location_country_code(settings):
+    weather = settings.get("weather", {})
+    data = _get_location_cached(bool(weather.get("use_geolocation", False)))
     return data.get("country_code")
 
 
-def _get_location():
-    data = _get_location_cached()
+def _get_location(settings):
+    weather = settings.get("weather", {})
+    data = _get_location_cached(bool(weather.get("use_geolocation", False)))
     return {
         "city": data.get("city") or "",
         "region": data.get("region") or "",
@@ -411,8 +456,12 @@ def _weather_icon_key(code):
     return "cloudy"
 
 
-def _fetch_weather():
-    location = _get_location()
+def _safe_weather_icon(value):
+    return value if value in _VALID_WEATHER_ICONS else "cloudy"
+
+
+def _fetch_weather(settings):
+    location = _get_location(settings)
     lat = location.get("latitude")
     lon = location.get("longitude")
     if lat is None or lon is None:
@@ -424,10 +473,10 @@ def _fetch_weather():
         "daily": "weathercode,temperature_2m_max,temperature_2m_min",
         "timezone": "auto",
     }
+    resp = _safe_get("https://api.open-meteo.com/v1/forecast", params=params, timeout=8)
+    if not resp or not resp.ok:
+        return {}
     try:
-        resp = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=8)
-        if not resp.ok:
-            return {}
         payload = resp.json()
     except Exception:
         return {}
@@ -447,7 +496,7 @@ def _fetch_weather():
                 "high_c": maxes[idx] if idx < len(maxes) else None,
                 "low_c": mins[idx] if idx < len(mins) else None,
                 "code": code,
-                "icon": _weather_icon_key(code),
+                "icon": _safe_weather_icon(_weather_icon_key(code)),
             }
         )
 
@@ -456,12 +505,14 @@ def _fetch_weather():
         "current_temp_c": current.get("temperature"),
         "current_windspeed": current.get("windspeed"),
         "current_code": current.get("weathercode"),
-        "current_icon": _weather_icon_key(current.get("weathercode")),
+        "current_icon": _safe_weather_icon(_weather_icon_key(current.get("weathercode"))),
         "forecast": forecast,
     }
 
 
-def _refresh_weather():
+def _refresh_weather(settings=None):
+    if settings is None:
+        settings = load_settings()
     now = time.time()
     cached = WEATHER_CACHE.snapshot()
     if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
@@ -470,7 +521,7 @@ def _refresh_weather():
         cached = WEATHER_CACHE.snapshot()
         if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
             return cached.get("payload")
-        payload = _fetch_weather()
+        payload = _fetch_weather(settings)
         if payload:
             WEATHER_CACHE.set("payload", payload)
             WEATHER_CACHE.set("last_fetch", now)
@@ -494,9 +545,9 @@ def _weather_background_loop(stop_event=None):
 
 
 def _start_weather_background():
-    global _WEATHER_THREAD_STARTED
+    global _WEATHER_THREAD
     with _WEATHER_THREAD_LOCK:
-        if _WEATHER_THREAD_STARTED:
+        if _WEATHER_THREAD and _WEATHER_THREAD.is_alive():
             return
         if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
             _WEATHER_STOP_EVENT.clear()
@@ -504,27 +555,29 @@ def _start_weather_background():
                 target=_weather_background_loop, args=(_WEATHER_STOP_EVENT,), daemon=True
             )
             thread.start()
-            _WEATHER_THREAD_STARTED = True
- 
+            _WEATHER_THREAD = thread
 
-@app.before_first_request
+
+@app.before_request
 def _init_weather_background():
     _start_weather_background()
 
 
-def _fetch_newsapi_items(api_key, limit):
+def _fetch_newsapi_items(api_key, limit, settings):
     if not api_key:
         return []
-    country = _get_location_country_code() or "us"
+    country = _get_location_country_code(settings) or "us"
     params = {
-        "apiKey": api_key,
         "country": country.lower(),
         "pageSize": limit,
     }
+    headers = {"X-Api-Key": api_key}
+    resp = _safe_get(
+        "https://newsapi.org/v2/top-headlines", params=params, headers=headers, timeout=8
+    )
+    if not resp or not resp.ok:
+        return []
     try:
-        resp = requests.get("https://newsapi.org/v2/top-headlines", params=params, timeout=8)
-        if not resp.ok:
-            return []
         payload = resp.json()
     except Exception:
         return []
@@ -594,26 +647,21 @@ def _refresh_news(settings):
         except (TypeError, ValueError):
             latest_limit = 5
         latest_limit = _clamp(latest_limit, 5, 10)
-        items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
+        api_key = env.get("newsapi_key") or news_settings.get("newsapi_key", "")
+        items.extend(_fetch_newsapi_items(api_key, latest_limit, settings))
 
         items = _dedupe_news(items)
         items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
-        if latest_limit > 1:
-            has_newsapi = any(item.get("source_type") == "newsapi" for item in items)
-            if has_newsapi:
-                newsapi_items = [item for item in items if item.get("source_type") == "newsapi"]
-                rss_items = [item for item in items if item.get("source_type") != "newsapi"]
-                items = rss_items[: max(latest_limit - 1, 0)]
-                items.extend(newsapi_items[:1])
-                items.sort(
-                    key=lambda item: _published_timestamp(item.get("published")),
-                    reverse=True,
-                )
-                items = items[:latest_limit]
-            else:
-                items = items[:latest_limit]
-        else:
-            items = items[:latest_limit]
+        if latest_limit > 1 and any(item.get("source_type") == "newsapi" for item in items):
+            newsapi_items = [item for item in items if item.get("source_type") == "newsapi"]
+            rss_items = [item for item in items if item.get("source_type") != "newsapi"]
+            items = rss_items[: max(latest_limit - 1, 0)]
+            items.extend(newsapi_items[:1])
+            items.sort(
+                key=lambda item: _published_timestamp(item.get("published")),
+                reverse=True,
+            )
+        items = items[:latest_limit]
         NEWS_CACHE.set("items", items)
         NEWS_CACHE.set("last_fetch", now)
         return items
@@ -632,7 +680,8 @@ def _fetch_emails(settings):
     client = None
     try:
         if use_ssl:
-            client = imaplib.IMAP4_SSL(host, port)
+            ssl_context = ssl.create_default_context()
+            client = imaplib.IMAP4_SSL(host, port, ssl_context=ssl_context)
         else:
             client = imaplib.IMAP4(host, port)
         client.login(user, password)
@@ -657,7 +706,11 @@ def _fetch_emails(settings):
                 {"subject": subject or "(no subject)", "from": sender, "date": date_str}
             )
         return emails
-    except Exception:
+    except Exception as exc:
+        try:
+            app.logger.exception("Email fetch failed")
+        except Exception:
+            print(f"Email fetch failed: {exc}", flush=True)
         return []
     finally:
         if client is not None:
@@ -700,7 +753,7 @@ def index():
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
-    data["weather"] = _refresh_weather() or data.get("weather", {})
+    data["weather"] = _refresh_weather(settings) or data.get("weather", {})
     data["news"] = _refresh_news(settings)
     data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
     display = settings.get("display", {})
@@ -721,7 +774,7 @@ def api_data():
     if requires_display_login(settings) and not is_logged_in(settings):
         return jsonify({"error": "unauthorized"}), 401
     data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
-    data["weather"] = _refresh_weather() or data.get("weather", {})
+    data["weather"] = _refresh_weather(settings) or data.get("weather", {})
     data["news"] = _refresh_news(settings)
     data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
     return jsonify(data)
@@ -788,6 +841,9 @@ def settings():
         display["show_todos"] = bool(request.form.get("show_todos"))
         display["show_calendar"] = bool(request.form.get("show_calendar"))
         display["show_packages"] = bool(request.form.get("show_packages"))
+
+        weather = current.setdefault("weather", {})
+        weather["use_geolocation"] = bool(request.form.get("weather_use_geolocation"))
 
         news = current.setdefault("news", {})
         predefined_raw = request.form.get("news_predefined_sources", "")

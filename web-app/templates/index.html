@@ -165,6 +165,17 @@
   </body>
   <script>
     var rotationTimers = {};
+    var rotationState = {};
+    var validIcons = {
+      clear: true,
+      partly: true,
+      cloudy: true,
+      fog: true,
+      drizzle: true,
+      rain: true,
+      snow: true,
+      thunder: true,
+    };
 
     function startRotation(selector) {
       var list = document.querySelector(selector);
@@ -172,10 +183,10 @@
         clearInterval(rotationTimers[selector]);
         rotationTimers[selector] = null;
       }
+      rotationState[selector] = { index: 0 };
       if (!list) return;
       var items = list.querySelectorAll("li");
       if (!items.length) return;
-      var index = 0;
       for (var i = 0; i < items.length; i += 1) {
         items[i].style.display = i === 0 ? "block" : "none";
       }
@@ -183,17 +194,30 @@
       var minutes = parseInt(list.getAttribute("data-rotate-minutes") || "5", 10) || 5;
       var interval = Math.max(1, minutes) * 60 * 1000;
       rotationTimers[selector] = setInterval(function () {
-        items[index].style.display = "none";
-        index = (index + 1) % items.length;
-        items[index].style.display = "block";
+        var currentList = document.querySelector(selector);
+        if (!currentList) return;
+        var currentItems = currentList.querySelectorAll("li");
+        if (!currentItems.length) return;
+        var state = rotationState[selector] || { index: 0 };
+        var nextIndex = state.index % currentItems.length;
+        for (var i = 0; i < currentItems.length; i += 1) {
+          currentItems[i].style.display = i === nextIndex ? "block" : "none";
+        }
+        state.index = (nextIndex + 1) % currentItems.length;
+        rotationState[selector] = state;
       }, interval);
     }
 
     startRotation(".news-list");
     startRotation(".email-list");
 
+    function normalizeIcon(icon) {
+      if (!validIcons[icon]) return "cloudy";
+      return icon;
+    }
+
     function setIconClass(node) {
-      var icon = node.getAttribute("data-icon") || "cloudy";
+      var icon = normalizeIcon(node.getAttribute("data-icon") || "cloudy");
       node.classList.add("icon-" + icon);
     }
 
@@ -246,7 +270,7 @@
             var currentIcon = document.querySelector(".weather-icon");
             if (currentIcon && weather.current_icon) {
               currentIcon.className = "weather-icon";
-              currentIcon.setAttribute("data-icon", weather.current_icon);
+              currentIcon.setAttribute("data-icon", normalizeIcon(weather.current_icon));
               setIconClass(currentIcon);
             }
             var tempEl = document.querySelector(".weather-temp");
@@ -265,7 +289,7 @@
                 var iconNode = node.querySelector(".forecast-icon");
                 if (iconNode && item.icon) {
                   iconNode.className = "forecast-icon";
-                  iconNode.setAttribute("data-icon", item.icon);
+                  iconNode.setAttribute("data-icon", normalizeIcon(item.icon));
                   setIconClass(iconNode);
                 }
                 var tempNode = node.querySelector(".forecast-temp");
