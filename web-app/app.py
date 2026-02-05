@@ -81,6 +81,7 @@ DEFAULT_SETTINGS = {
         "show_todos": True,
         "show_calendar": True,
         "show_packages": True,
+        "show_emails": True,
     },
     "weather": {"use_geolocation": False},
     "news": {
@@ -199,6 +200,11 @@ def is_logged_in(settings):
 def requires_display_login(settings):
     return bool(settings.get("auth", {}).get("require_login_for_display", False))
 
+def _is_default_password(settings):
+    auth = settings.get("auth", {})
+    if auth.get("admin_password_hash"):
+        return False
+    return auth.get("admin_password") == "change-me"
 
 def is_legacy_client():
     ua = (request.headers.get("User-Agent") or "").lower()
@@ -260,7 +266,6 @@ def _normalize_news_item(title, source, link, published, source_type):
         "source_type": source_type,
     }
 
-
 def _resolved_ips_safe(hostname):
     try:
         infos = socket.getaddrinfo(hostname, None)
@@ -284,6 +289,7 @@ def _resolved_ips_safe(hostname):
 
 
 def _is_safe_url(url):
+    # Best-effort SSRF guard; DNS can change between validation and request.
     try:
         parsed = urlparse(url)
     except Exception:
@@ -541,8 +547,8 @@ def _refresh_weather(settings=None):
             WEATHER_CACHE.set("payload", payload)
             WEATHER_CACHE.set("last_fetch", now)
             return payload
-        # Keep last known good payload to avoid empty display
-        return cached.get("payload", {})
+    # Keep last known good payload to avoid empty display
+    return cached.get("payload", {})
 
 
 def _weather_background_loop(stop_event=None):
@@ -645,6 +651,7 @@ def _refresh_news(settings):
         return cached.get("items")
     with _NEWS_REFRESH_LOCK:
         cached = NEWS_CACHE.snapshot()
+        now = time.time()
         if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
             return cached.get("items")
 
@@ -751,6 +758,7 @@ def _refresh_emails(settings):
         return cached.get("items")
     with _EMAIL_REFRESH_LOCK:
         cached = EMAIL_CACHE.snapshot()
+        now = time.time()
         if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
             return cached.get("items")
         items = _fetch_emails(settings)
@@ -803,7 +811,7 @@ def login():
     settings = load_settings()
     auth = settings.get("auth", {})
     if request.method == "POST":
-        if not _validate_csrf():
+        if not _validate_csrf(request.form.get("csrf_token")):
             abort(400)
         username = request.form.get("username", "")
         password = request.form.get("password", "")
@@ -846,8 +854,15 @@ def settings():
         return redirect(url_for("login"))
 
     if request.method == "POST":
-        if not _validate_csrf():
-            abort(400)
+        if not _validate_csrf(request.form.get("csrf_token")):
+            return render_template(
+                "settings.html",
+                settings=current,
+                csrf_error=True,
+                csrf_token=_get_csrf_token(),
+                using_default_password=_is_default_password(current),
+            ), 400
+        previous = json.loads(json.dumps(current))
         auth = current.setdefault("auth", {})
         admin_user = request.form.get("admin_user", auth.get("admin_user", "admin")).strip()
         auth["admin_user"] = admin_user or auth.get("admin_user", "admin")
@@ -865,6 +880,7 @@ def settings():
         display = current.setdefault("display", {})
         display["show_weather"] = bool(request.form.get("show_weather"))
         display["show_news"] = bool(request.form.get("show_news"))
+        display["show_emails"] = bool(request.form.get("show_emails"))
         display["show_todos"] = bool(request.form.get("show_todos"))
         display["show_calendar"] = bool(request.form.get("show_calendar"))
         display["show_packages"] = bool(request.form.get("show_packages"))
@@ -944,6 +960,13 @@ def settings():
         static_ip["dns"] = request.form.get("static_ip_dns", "").strip()
         static_ip["iface"] = request.form.get("static_ip_iface", "").strip() or "eth0"
 
+        if previous.get("news", {}) != news:
+            NEWS_CACHE.set("items", [])
+            NEWS_CACHE.set("last_fetch", 0.0)
+        if previous.get("email", {}) != email:
+            EMAIL_CACHE.set("items", [])
+            EMAIL_CACHE.set("last_fetch", 0.0)
+
         save_settings(current)
         write_json(env["system_changes_path"], {"static_ip": static_ip})
         NEWS_CACHE.set("items", [])
@@ -954,7 +977,10 @@ def settings():
         return redirect(url_for("settings"))
 
     return render_template(
-        "settings.html", settings=current, csrf_token=_get_csrf_token()
+        "settings.html",
+        settings=current,
+        csrf_token=_get_csrf_token(),
+        using_default_password=_is_default_password(current),
     )
 
 

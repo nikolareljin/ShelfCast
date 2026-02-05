@@ -221,7 +221,10 @@
       node.classList.add("icon-" + icon);
     }
 
-    document.querySelectorAll(".forecast-icon, .weather-icon").forEach(setIconClass);
+    var iconNodes = document.querySelectorAll(".forecast-icon, .weather-icon");
+    for (var i = 0; i < iconNodes.length; i += 1) {
+      setIconClass(iconNodes[i]);
+    }
 
     function handleUnauthorized(response) {
       if (response.status === 401) {

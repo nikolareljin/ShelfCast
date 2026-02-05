@@ -18,6 +18,12 @@
     <main class="settings">
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        {% if csrf_error %}
+        <p class="note">Invalid CSRF token. Please refresh the page and try again.</p>
+        {% endif %}
+        {% if using_default_password %}
+        <p class="note">Warning: the default admin password is still in use. Update it below.</p>
+        {% endif %}
         <section>
           <h2>Admin</h2>
           <label>
@@ -38,6 +44,7 @@
           <h2>Display modules</h2>
           <label><input type="checkbox" name="show_weather" {% if settings.display.show_weather %}checked{% endif %} /> Weather</label>
           <label><input type="checkbox" name="show_news" {% if settings.display.show_news %}checked{% endif %} /> News</label>
+          <label><input type="checkbox" name="show_emails" {% if settings.display.show_emails %}checked{% endif %} /> Emails</label>
           <label><input type="checkbox" name="show_todos" {% if settings.display.show_todos %}checked{% endif %} /> Todos</label>
           <label><input type="checkbox" name="show_calendar" {% if settings.display.show_calendar %}checked{% endif %} /> Calendar</label>
           <label><input type="checkbox" name="show_packages" {% if settings.display.show_packages %}checked{% endif %} /> Packages</label>
