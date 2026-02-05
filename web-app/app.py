@@ -205,6 +205,10 @@ WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 _WEATHER_THREAD_STARTED = False
 _WEATHER_THREAD_LOCK = threading.Lock()
+_NEWS_REFRESH_LOCK = threading.Lock()
+_EMAIL_REFRESH_LOCK = threading.Lock()
+_WEATHER_REFRESH_LOCK = threading.Lock()
+_LOCATION_REFRESH_LOCK = threading.Lock()
 
 
 def _clamp(value, minimum, maximum):
@@ -312,16 +316,21 @@ def _get_location_cached():
     now = time.time()
     if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
         return cached.get("payload")
-    try:
-        resp = requests.get("https://ipapi.co/json/", timeout=5)
-        if resp.ok:
-            payload = resp.json()
-            LOCATION_CACHE.set("payload", payload)
-            LOCATION_CACHE.set("last_fetch", now)
-            return payload
-    except Exception:
-        # If geo lookup fails, return cached data.
-        return cached.get("payload", {})
+    with _LOCATION_REFRESH_LOCK:
+        cached = LOCATION_CACHE.snapshot()
+        now = time.time()
+        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 30 * 60:
+            return cached.get("payload")
+        try:
+            resp = requests.get("https://ipapi.co/json/", timeout=5)
+            if resp.ok:
+                payload = resp.json()
+                LOCATION_CACHE.set("payload", payload)
+                LOCATION_CACHE.set("last_fetch", now)
+                return payload
+        except Exception:
+            # If geo lookup fails, return cached data.
+            return cached.get("payload", {})
     return cached.get("payload", {})
 
 
@@ -416,11 +425,16 @@ def _refresh_weather():
     cached = WEATHER_CACHE.snapshot()
     if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
         return cached.get("payload")
-    payload = _fetch_weather()
-    if payload:
-        WEATHER_CACHE.set("payload", payload)
-        WEATHER_CACHE.set("last_fetch", now)
-        return payload
+    with _WEATHER_REFRESH_LOCK:
+        cached = WEATHER_CACHE.snapshot()
+        now = time.time()
+        if cached.get("payload") and now - cached.get("last_fetch", 0.0) < 15 * 60:
+            return cached.get("payload")
+        payload = _fetch_weather()
+        if payload:
+            WEATHER_CACHE.set("payload", payload)
+            WEATHER_CACHE.set("last_fetch", now)
+            return payload
     # Keep last known good payload to avoid empty display
     return cached.get("payload", {})
 
@@ -508,26 +522,31 @@ def _refresh_news(settings):
     cached = NEWS_CACHE.snapshot()
     if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
         return cached.get("items")
+    with _NEWS_REFRESH_LOCK:
+        cached = NEWS_CACHE.snapshot()
+        now = time.time()
+        if cached.get("items") and now - cached.get("last_fetch", 0.0) < refresh_minutes * 60:
+            return cached.get("items")
 
-    sources = []
-    sources.extend(news_settings.get("predefined_sources", []))
-    sources.extend(news_settings.get("custom_sources", []))
-    sources = [s.strip() for s in sources if s.strip()]
+        sources = []
+        sources.extend(news_settings.get("predefined_sources", []))
+        sources.extend(news_settings.get("custom_sources", []))
+        sources = [s.strip() for s in sources if s.strip()]
 
-    items = []
-    for source in _expand_sources(sources):
-        items.extend(_fetch_rss_items(source))
+        items = []
+        for source in _expand_sources(sources):
+            items.extend(_fetch_rss_items(source))
 
-    latest_limit = int(news_settings.get("latest_limit", 5) or 5)
-    latest_limit = _clamp(latest_limit, 5, 10)
-    items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
+        latest_limit = int(news_settings.get("latest_limit", 5) or 5)
+        latest_limit = _clamp(latest_limit, 5, 10)
+        items.extend(_fetch_newsapi_items(news_settings.get("newsapi_key", ""), latest_limit))
 
-    items = _dedupe_news(items)
-    items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
-    items = items[:latest_limit]
-    NEWS_CACHE.set("items", items)
-    NEWS_CACHE.set("last_fetch", now)
-    return items
+        items = _dedupe_news(items)
+        items.sort(key=lambda item: _published_timestamp(item.get("published")), reverse=True)
+        items = items[:latest_limit]
+        NEWS_CACHE.set("items", items)
+        NEWS_CACHE.set("last_fetch", now)
+        return items
 
 
 def _fetch_emails(settings):
@@ -583,10 +602,15 @@ def _refresh_emails(settings):
     cached = EMAIL_CACHE.snapshot()
     if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
         return cached.get("items")
-    items = _fetch_emails(settings)
-    EMAIL_CACHE.set("items", items)
-    EMAIL_CACHE.set("last_fetch", now)
-    return items
+    with _EMAIL_REFRESH_LOCK:
+        cached = EMAIL_CACHE.snapshot()
+        now = time.time()
+        if cached.get("items") and now - cached.get("last_fetch", 0.0) < 60:
+            return cached.get("items")
+        items = _fetch_emails(settings)
+        EMAIL_CACHE.set("items", items)
+        EMAIL_CACHE.set("last_fetch", now)
+        return items
 
 @app.route("/")
 def index():
