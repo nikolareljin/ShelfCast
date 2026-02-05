@@ -122,7 +122,7 @@
       </section>
       {% endif %}
 
-      {% if data.emails %}
+      {% if display.show_emails and data.emails %}
       <section class="card">
         <h2>Emails</h2>
         <ul class="email-list" data-rotate-minutes="1">
@@ -193,7 +193,10 @@
       node.classList.add(`icon-${icon}`);
     }
 
-    document.querySelectorAll(".forecast-icon, .weather-icon").forEach(setIconClass);
+    const iconNodes = document.querySelectorAll(".forecast-icon, .weather-icon");
+    for (let i = 0; i < iconNodes.length; i += 1) {
+      setIconClass(iconNodes[i]);
+    }
 
     const refreshMinutes = parseInt(
       document.querySelector(".news-list")?.dataset.rotateMinutes || "5",
