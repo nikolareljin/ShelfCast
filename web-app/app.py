@@ -5,6 +5,7 @@ import subprocess
 import time
 import threading
 import ipaddress
+import secrets
 from datetime import datetime
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -76,6 +77,7 @@ DEFAULT_SETTINGS = {
         "show_todos": True,
         "show_calendar": True,
         "show_packages": True,
+        "show_emails": True,
     },
     "news": {
         "predefined_sources": ["https://example.com/rss"],
@@ -176,6 +178,26 @@ def is_logged_in(settings):
 def requires_display_login(settings):
     return bool(settings.get("auth", {}).get("require_login_for_display", False))
 
+def _get_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+def _validate_csrf(form_token):
+    session_token = session.get("csrf_token")
+    return bool(form_token) and bool(session_token) and secrets.compare_digest(form_token, session_token)
+
+
+def _is_default_password(settings):
+    auth = settings.get("auth", {})
+    if auth.get("admin_password_hash"):
+        return False
+    return auth.get("admin_password") == "change-me"
+
+
 def is_legacy_client():
     ua = (request.headers.get("User-Agent") or "").lower()
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
@@ -205,6 +227,7 @@ WEATHER_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 LOCATION_CACHE = ThreadSafeCache({"payload": {}, "last_fetch": 0.0})
 _WEATHER_THREAD_STARTED = False
 _WEATHER_THREAD_LOCK = threading.Lock()
+_WEATHER_THREAD = None
 _NEWS_REFRESH_LOCK = threading.Lock()
 _EMAIL_REFRESH_LOCK = threading.Lock()
 _WEATHER_REFRESH_LOCK = threading.Lock()
@@ -225,6 +248,7 @@ def _normalize_news_item(title, source, link, published):
 
 
 def _is_safe_url(url):
+    # Best-effort SSRF guard; DNS can change between validation and request.
     try:
         parsed = urlparse(url)
     except Exception:
@@ -449,13 +473,13 @@ def _weather_background_loop():
 
 
 def _start_weather_background():
-    global _WEATHER_THREAD_STARTED
+    global _WEATHER_THREAD_STARTED, _WEATHER_THREAD
     with _WEATHER_THREAD_LOCK:
-        if _WEATHER_THREAD_STARTED:
+        if _WEATHER_THREAD and _WEATHER_THREAD.is_alive():
             return
         if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-            thread = threading.Thread(target=_weather_background_loop, daemon=True)
-            thread.start()
+            _WEATHER_THREAD = threading.Thread(target=_weather_background_loop, daemon=True)
+            _WEATHER_THREAD.start()
             _WEATHER_THREAD_STARTED = True
 
 
@@ -588,6 +612,7 @@ def _fetch_emails(settings):
             )
         return emails
     except Exception:
+        # Avoid logging full exception details to prevent credential leakage.
         return []
     finally:
         if client is not None:
@@ -685,6 +710,15 @@ def settings():
         return redirect(url_for("login"))
 
     if request.method == "POST":
+        if not _validate_csrf(request.form.get("csrf_token")):
+            return render_template(
+                "settings.html",
+                settings=current,
+                csrf_error=True,
+                csrf_token=_get_csrf_token(),
+                using_default_password=_is_default_password(current),
+            ), 400
+        previous = json.loads(json.dumps(current))
         auth = current.setdefault("auth", {})
         admin_user = request.form.get("admin_user", auth.get("admin_user", "admin")).strip()
         auth["admin_user"] = admin_user or auth.get("admin_user", "admin")
@@ -702,6 +736,7 @@ def settings():
         display = current.setdefault("display", {})
         display["show_weather"] = bool(request.form.get("show_weather"))
         display["show_news"] = bool(request.form.get("show_news"))
+        display["show_emails"] = bool(request.form.get("show_emails"))
         display["show_todos"] = bool(request.form.get("show_todos"))
         display["show_calendar"] = bool(request.form.get("show_calendar"))
         display["show_packages"] = bool(request.form.get("show_packages"))
@@ -762,12 +797,24 @@ def settings():
         static_ip["dns"] = request.form.get("static_ip_dns", "").strip()
         static_ip["iface"] = request.form.get("static_ip_iface", "").strip() or "eth0"
 
+        if previous.get("news", {}) != news:
+            NEWS_CACHE.set("items", [])
+            NEWS_CACHE.set("last_fetch", 0.0)
+        if previous.get("email", {}) != email:
+            EMAIL_CACHE.set("items", [])
+            EMAIL_CACHE.set("last_fetch", 0.0)
+
         save_settings(current)
         write_json(env["system_changes_path"], {"static_ip": static_ip})
 
         return redirect(url_for("settings"))
 
-    return render_template("settings.html", settings=current)
+    return render_template(
+        "settings.html",
+        settings=current,
+        csrf_token=_get_csrf_token(),
+        using_default_password=_is_default_password(current),
+    )
 
 
 if __name__ == "__main__":
