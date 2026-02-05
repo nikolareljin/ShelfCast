@@ -674,7 +674,10 @@ def _fetch_emails(settings):
     password = env.get("email_password") or email_settings.get("password")
     if not host or not user or not password:
         return []
-    port = int(email_settings.get("port", 993) or 993)
+    try:
+        port = int(email_settings.get("port", 993) or 993)
+    except (TypeError, ValueError):
+        port = 993
     folder = email_settings.get("folder", "INBOX")
     use_ssl = bool(email_settings.get("ssl", True))
     client = None
