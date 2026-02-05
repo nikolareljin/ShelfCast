@@ -830,9 +830,13 @@ def login():
             error="Invalid credentials",
             ip_address=get_ip_address(),
             csrf_token=_get_csrf_token(),
+            using_default_password=_is_default_password(settings),
         )
     return render_template(
-        "login.html", ip_address=get_ip_address(), csrf_token=_get_csrf_token()
+        "login.html",
+        ip_address=get_ip_address(),
+        csrf_token=_get_csrf_token(),
+        using_default_password=_is_default_password(settings),
     )
 
 

@@ -10,6 +10,9 @@
     <div class="ip-badge">Pi IP: <span>{{ ip_address }}</span></div>
     <main class="login">
       <h1>Login</h1>
+      {% if using_default_password %}
+        <p class="note">Security warning: default password is active. Change it in Settings after login.</p>
+      {% endif %}
       {% if error %}
         <p class="error">{{ error }}</p>
       {% endif %}
