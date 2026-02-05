@@ -491,6 +491,10 @@ def _safe_weather_icon(value):
     return value if value in _VALID_WEATHER_ICONS else "cloudy"
 
 
+def _icon_asset_filename(value):
+    return f"icons/{_safe_weather_icon(value)}.gif"
+
+
 def _fetch_weather(settings):
     location = _get_location(settings)
     lat = location.get("latitude")
@@ -805,6 +809,7 @@ def index():
         ip_address=get_ip_address(),
         news_refresh_minutes=settings.get("news", {}).get("refresh_minutes", 5),
         email_refresh_minutes=settings.get("email", {}).get("refresh_minutes", 1),
+        icon_asset_filename=_icon_asset_filename,
     )
 
 

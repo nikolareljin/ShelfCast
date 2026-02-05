@@ -31,7 +31,7 @@
       </tr>
       <tr>
         <td>
-          <img class="icon" src="{{ url_for('static', filename='icons/' ~ (data.weather.current_icon or 'cloudy') ~ '.gif') }}" alt="icon" />
+          <img class="icon" src="{{ url_for('static', filename=icon_asset_filename(data.weather.current_icon)) }}" alt="icon" />
           {% if data.weather.current_temp_c is not none %}
             {{ data.weather.current_temp_c }}°C
           {% else %}
@@ -51,7 +51,7 @@
               <tr>
                 <td>{{ item.date or "--" }}</td>
                 <td>
-                  <img class="icon" src="{{ url_for('static', filename='icons/' ~ (item.icon or 'cloudy') ~ '.gif') }}" alt="icon" />
+                  <img class="icon" src="{{ url_for('static', filename=icon_asset_filename(item.icon)) }}" alt="icon" />
                 </td>
                 <td>
                   {% if item.high_c is not none %}{{ item.high_c }}°{% else %}--{% endif %}
