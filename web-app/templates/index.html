@@ -165,11 +165,11 @@
     function startRotation(selector) {
       const list = document.querySelector(selector);
       if (!list) return;
-      const items = list.querySelectorAll("li");
-      if (items.length <= 1) return;
       if (rotationTimers[selector]) {
         clearInterval(rotationTimers[selector]);
       }
+      const items = list.querySelectorAll("li");
+      if (items.length <= 1) return;
       let index = 0;
       items.forEach((item, idx) => {
         item.style.display = idx === 0 ? "block" : "none";
@@ -177,9 +177,11 @@
       const minutes = parseInt(list.dataset.rotateMinutes || "5", 10);
       const interval = Math.max(1, minutes) * 60 * 1000;
       rotationTimers[selector] = setInterval(() => {
-        items[index].style.display = "none";
-        index = (index + 1) % items.length;
-        items[index].style.display = "block";
+        const currentItems = list.querySelectorAll("li");
+        if (currentItems.length <= 1) return;
+        currentItems[index].style.display = "none";
+        index = (index + 1) % currentItems.length;
+        currentItems[index].style.display = "block";
       }, interval);
     }
 
