@@ -314,6 +314,9 @@ def _response_peer_ip(resp):
 
 def _safe_get(url, timeout=8, params=None, headers=None):
     # Best-effort SSRF protection: validate before request and block redirects.
+    # DNS-based TOCTOU cannot be fully eliminated with requests alone; we mitigate
+    # by validating host resolution before and after the request and by checking
+    # the connected peer IP when available.
     if not _is_safe_url(url):
         return None
     parsed = urlparse(url)
