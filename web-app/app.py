@@ -734,11 +734,11 @@ def _fetch_emails(settings):
                 {"subject": subject or "(no subject)", "from": sender, "date": date_str}
             )
         return emails
-    except Exception as exc:
+    except Exception:
         try:
-            app.logger.exception("Email fetch failed")
+            app.logger.error("Email fetch failed")
         except Exception:
-            print(f"Email fetch failed: {exc}", flush=True)
+            print("Email fetch failed", flush=True)
         return []
     finally:
         if client is not None:
