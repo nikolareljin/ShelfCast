@@ -139,10 +139,13 @@ def _get_csrf_token():
     return token
 
 
-def _validate_csrf():
-    form_token = request.form.get("csrf_token", "")
+def _validate_csrf(form_token=None):
+    if form_token is None:
+        form_token = request.form.get("csrf_token", "")
     session_token = session.get("csrf_token", "")
-    return bool(form_token) and bool(session_token) and form_token == session_token
+    return bool(form_token) and bool(session_token) and secrets.compare_digest(
+        form_token, session_token
+    )
 
 
 def read_data(data_path):
