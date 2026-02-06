@@ -412,7 +412,7 @@ def _safe_get(url, timeout=8, params=None, headers=None):
         )
     except Exception:
         return None
-    if getattr(resp, "is_redirect", False) or getattr(resp, "is_permanent_redirect", False):
+    if resp.is_redirect or resp.is_permanent_redirect:
         return None
     if resp.url != expected_url:
         return None
