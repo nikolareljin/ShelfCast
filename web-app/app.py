@@ -308,6 +308,11 @@ _WEATHER_REFRESH_LOCK = threading.Lock()
 _LOCATION_LOCK = threading.Lock()
 _NEWS_REFRESH_LOCK = threading.Lock()
 _EMAIL_REFRESH_LOCK = threading.Lock()
+_LOGIN_ATTEMPT_LOCK = threading.Lock()
+_LOGIN_ATTEMPTS = {}
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW_SECONDS = 15 * 60
+_LOGIN_BLOCK_SECONDS = 5 * 60
 _VALID_WEATHER_ICONS = {
     "clear",
     "partly",
@@ -570,6 +575,44 @@ def _safe_weather_icon(value):
 
 def _icon_asset_filename(value):
     return f"icons/{_safe_weather_icon(value)}.gif"
+
+
+def _client_ip():
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _check_login_rate_limit(key):
+    now = time.time()
+    with _LOGIN_ATTEMPT_LOCK:
+        entry = _LOGIN_ATTEMPTS.get(key)
+        if not entry:
+            return True
+        window_start = entry.get("window_start", now)
+        if now - window_start > _LOGIN_WINDOW_SECONDS:
+            _LOGIN_ATTEMPTS.pop(key, None)
+            return True
+        block_until = entry.get("block_until", 0.0)
+        return now >= block_until
+
+
+def _record_login_failure(key):
+    now = time.time()
+    with _LOGIN_ATTEMPT_LOCK:
+        entry = _LOGIN_ATTEMPTS.get(key)
+        if not entry or now - entry.get("window_start", now) > _LOGIN_WINDOW_SECONDS:
+            entry = {"count": 0, "window_start": now, "block_until": 0.0}
+        entry["count"] += 1
+        if entry["count"] >= _LOGIN_MAX_ATTEMPTS:
+            entry["block_until"] = now + _LOGIN_BLOCK_SECONDS
+        _LOGIN_ATTEMPTS[key] = entry
+
+
+def _clear_login_failures(key):
+    with _LOGIN_ATTEMPT_LOCK:
+        _LOGIN_ATTEMPTS.pop(key, None)
 
 
 def _fetch_weather(settings):
@@ -945,6 +988,15 @@ def login():
     settings = load_settings()
     auth = settings.get("auth", {})
     if request.method == "POST":
+        client_key = _client_ip()
+        if not _check_login_rate_limit(client_key):
+            return render_template(
+                "login.html",
+                error="Too many failed attempts. Please try again later.",
+                ip_address=get_ip_address(),
+                csrf_token=_get_csrf_token(),
+                using_default_password=_is_default_password(settings),
+            ), 429
         if not _validate_csrf(request.form.get("csrf_token")):
             abort(400)
         username = request.form.get("username", "")
@@ -957,12 +1009,14 @@ def login():
         elif plaintext_password:
             password_ok = plaintext_password == password
         if username == auth.get("admin_user") and password_ok:
+            _clear_login_failures(client_key)
             session["user"] = username
             if _is_default_password(settings):
                 session["force_password_change"] = True
                 return redirect(url_for("settings"))
             session.pop("force_password_change", None)
             return redirect(url_for("index"))
+        _record_login_failure(client_key)
         return render_template(
             "login.html",
             error="Invalid credentials",
