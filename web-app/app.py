@@ -427,22 +427,23 @@ def _safe_get(url, timeout=8, params=None, headers=None):
     if not _is_safe_url(resp.url):
         return None
     peer_ip = _response_peer_ip(resp)
-    if not peer_ip:
-        return None
-    try:
-        peer_addr = ipaddress.ip_address(peer_ip)
-    except ValueError:
-        return None
-    if (
-        peer_addr.is_private
-        or peer_addr.is_loopback
-        or peer_addr.is_link_local
-        or peer_addr.is_reserved
-        or peer_addr.is_multicast
-    ):
-        return None
-    if peer_ip not in initial_ips and peer_ip not in final_ips:
-        return None
+    # Some adapters/proxies do not expose socket peer details.
+    # Keep DNS-based SSRF checks in place and validate peer IP when available.
+    if peer_ip:
+        try:
+            peer_addr = ipaddress.ip_address(peer_ip)
+        except ValueError:
+            return None
+        if (
+            peer_addr.is_private
+            or peer_addr.is_loopback
+            or peer_addr.is_link_local
+            or peer_addr.is_reserved
+            or peer_addr.is_multicast
+        ):
+            return None
+        if peer_ip not in initial_ips and peer_ip not in final_ips:
+            return None
     return resp
 
 

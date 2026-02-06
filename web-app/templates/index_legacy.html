@@ -24,12 +24,12 @@
   <body>
     <h1>ShelfCast</h1>
     <!-- Current date and time - with JavaScript. Refresh every minute -->
-    <div class="date top-left" id="datetime"></div>
+    <div class="date top-left" id="datetime">Time</div>
     <div class="muted top-right" id="refresh-info">Last refreshed: --</div>
     <div class="muted">Host IP: {{ ip_address }}</div>
 
     {% if display.show_weather %}
-    <h2>Weather</h2>
+    <!-- <h2>Weather</h2> -->
     <table>
       <tr>
         <th>Now</th>
@@ -47,11 +47,11 @@
         </td>
         <td>
           <table>
-            <!-- <tr>
+            <tr>
               <th>Date</th>
               <th>Icon</th>
               <th>High/Low</th>
-            </tr> -->
+            </tr>
             {% if data.weather.forecast %}
               {% for item in data.weather.forecast %}
               <tr>
@@ -82,18 +82,25 @@
     {% endif %}
 
     {% if display.show_news %}
-    <!-- <h2>News</h2> -->
+    <h2>News</h2>
     <table>
       <tr>
-        <th>News</th>
+        <th>Title</th>
         <th>Source</th>
       </tr>
+      {% if data.news %}
       {% for item in data.news %}
       <tr>
         <td class="news_title">{{ item.title }}</td>
         <td class="news_source">{{ item.source }}</td>
       </tr>
       {% endfor %}
+      {% else %}
+      <tr>
+        <td class="news_title">No news available.</td>
+        <td class="news_source">Check feed URLs or NewsAPI key.</td>
+      </tr>
+      {% endif %}
     </table>
     {% endif %}
 
@@ -158,9 +165,10 @@
     
     function updateDate() {
       var now = new Date();
-      var options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+      // var options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+      var options = { year: 'numeric', month: '2-digit', day: 'numeric', hour: '2-digit', minute: '2-digit' };
       var dateString = now.toLocaleDateString(undefined, options);
-      var node = document.getElementById("date");
+      var node = document.getElementById("datetime");
       if (node) {
         node.textContent = dateString;
       }
