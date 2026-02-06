@@ -17,6 +17,19 @@
 
     <main class="settings">
       <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        {% if csrf_error %}
+        <p class="note">Invalid CSRF token. Please refresh the page and try again.</p>
+        {% endif %}
+        {% if using_default_password %}
+        <p class="note">Warning: the default admin password is still in use. Update it below.</p>
+        {% endif %}
+        {% if force_password_change %}
+        <p class="note">Password change is required before dashboard access is restored.</p>
+        {% endif %}
+        {% if password_required_error %}
+        <p class="note">Set a new admin password to continue.</p>
+        {% endif %}
         <section>
           <h2>Admin</h2>
           <label>
@@ -24,8 +37,12 @@
             <input type="text" name="admin_user" value="{{ settings.auth.admin_user }}" required />
           </label>
           <label>
+            <input type="checkbox" name="require_login_for_display" {% if settings.auth.require_login_for_display %}checked{% endif %} />
+            Require login for dashboard display
+          </label>
+          <label>
             New password
-            <input type="password" name="admin_password" placeholder="Leave blank to keep" />
+            <input type="password" name="admin_password" {% if force_password_change %}required{% else %}placeholder="Leave blank to keep"{% endif %} />
           </label>
         </section>
 
@@ -33,6 +50,7 @@
           <h2>Display modules</h2>
           <label><input type="checkbox" name="show_weather" {% if settings.display.show_weather %}checked{% endif %} /> Weather</label>
           <label><input type="checkbox" name="show_news" {% if settings.display.show_news %}checked{% endif %} /> News</label>
+          <label><input type="checkbox" name="show_emails" {% if settings.display.show_emails %}checked{% endif %} /> Emails</label>
           <label><input type="checkbox" name="show_todos" {% if settings.display.show_todos %}checked{% endif %} /> Todos</label>
           <label><input type="checkbox" name="show_calendar" {% if settings.display.show_calendar %}checked{% endif %} /> Calendar</label>
           <label><input type="checkbox" name="show_packages" {% if settings.display.show_packages %}checked{% endif %} /> Packages</label>
@@ -48,6 +66,11 @@
 
         <section>
           <h2>News sources</h2>
+          <p class="note">
+            NewsAPI keys are encrypted at rest in the local settings file.
+            Encryption uses `SHELFCAST_CREDENTIAL_KEY` (or `SHELFCAST_SECRET_KEY` fallback).
+            Set `SHELFCAST_NEWSAPI_KEY` to override the stored key.
+          </p>
           <label>
             Predefined RSS feeds (one per line)
             <textarea name="news_predefined_sources" rows="4">{% for source in settings.news.predefined_sources %}{{ source }}
@@ -57,6 +80,75 @@
             Custom RSS feeds (one per line)
             <textarea name="news_custom_sources" rows="4">{% for source in settings.news.custom_sources %}{{ source }}
 {% endfor %}</textarea>
+          </label>
+          <label>
+            News refresh (minutes, 1-15)
+            <input type="number" name="news_refresh_minutes" min="1" max="15" value="{{ settings.news.refresh_minutes }}" />
+          </label>
+          <label>
+            Latest news limit (5-10)
+            <input type="number" name="news_latest_limit" min="5" max="10" value="{{ settings.news.latest_limit }}" />
+          </label>
+          <label>
+            NewsAPI key
+            <input type="password" name="newsapi_key" placeholder="Leave blank to keep current" />
+          </label>
+          <label>
+            <input type="checkbox" name="newsapi_key_clear" />
+            Clear stored NewsAPI key
+          </label>
+        </section>
+
+        <section>
+          <h2>Weather</h2>
+          <label>
+            <input type="checkbox" name="weather_use_geolocation" {% if settings.weather.use_geolocation %}checked{% endif %} />
+            Use IP-based geolocation for weather (calls ipapi.co)
+          </label>
+        </section>
+
+        <section>
+          <h2>Email (IMAP)</h2>
+          <p class="note">
+            Credentials are encrypted at rest in the local settings file.
+            Encryption uses `SHELFCAST_CREDENTIAL_KEY` (or `SHELFCAST_SECRET_KEY` fallback).
+            Set `SHELFCAST_EMAIL_PASSWORD` to override the stored password.
+          </p>
+          <label>
+            Host
+            <input type="text" name="email_host" value="{{ settings.email.host }}" />
+          </label>
+          <label>
+            Port
+            <input type="number" name="email_port" min="1" max="65535" value="{{ settings.email.port }}" />
+          </label>
+          <label>
+            Username
+            <input type="text" name="email_user" value="{{ settings.email.user }}" />
+          </label>
+          <label>
+            Password
+            <input type="password" name="email_password" placeholder="Leave blank to keep current" />
+          </label>
+          <label>
+            <input type="checkbox" name="email_password_clear" />
+            Clear stored email password
+          </label>
+          <label>
+            Folder
+            <input type="text" name="email_folder" value="{{ settings.email.folder }}" />
+          </label>
+          <label>
+            Use SSL
+            <input type="checkbox" name="email_ssl" {% if settings.email.ssl %}checked{% endif %} />
+          </label>
+          <label>
+            <input type="checkbox" name="email_require_login_for_display" {% if settings.email.require_login_for_display %}checked{% endif %} />
+            Require login to show emails on dashboard
+          </label>
+          <label>
+            Email refresh (minutes, 1-15)
+            <input type="number" name="email_refresh_minutes" min="1" max="15" value="{{ settings.email.refresh_minutes }}" />
           </label>
         </section>
 

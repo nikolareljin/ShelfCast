@@ -5,11 +5,10 @@ buildscript {
     repositories {
         maven { url "https://maven.google.com" }
         mavenCentral()
-        jcenter()
     }
     dependencies {
-        // Use legacy Android Gradle Plugin for Android 2.1 compatibility (no aapt2)
-        classpath 'com.android.tools.build:gradle:2.3.3'
+        // Use Android Gradle Plugin available on Google Maven.
+        classpath 'com.android.tools.build:gradle:3.0.1'
     }
 }
 
@@ -17,7 +16,6 @@ allprojects {
     repositories {
         maven { url "https://maven.google.com" }
         mavenCentral()
-        jcenter()
     }
 }
 

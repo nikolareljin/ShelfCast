@@ -16,28 +16,107 @@
       </nav>
     </header>
 
-    <main class="grid">
+    <main class="board">
       {% if display.show_weather %}
-      <section>
+      <section class="card weather-card">
         <h2>Weather</h2>
-        <p>{{ data.weather.summary }}</p>
-        <p>High {{ data.weather.high_c }}°C / Low {{ data.weather.low_c }}°C</p>
+        <div class="weather-current">
+          <div class="weather-icon" data-icon="{{ data.weather.current_icon | default('cloudy') }}">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="sun" cx="22" cy="22" r="10"></circle>
+              <g class="rays">
+                <line x1="22" y1="2" x2="22" y2="10"></line>
+                <line x1="22" y1="34" x2="22" y2="42"></line>
+                <line x1="2" y1="22" x2="10" y2="22"></line>
+                <line x1="34" y1="22" x2="42" y2="22"></line>
+              </g>
+              <path class="cloud" d="M42 44H18a10 10 0 0 1 0-20 12 12 0 0 1 23 4 8 8 0 0 1 1 16z"></path>
+              <g class="rain">
+                <line x1="22" y1="46" x2="18" y2="56"></line>
+                <line x1="34" y1="46" x2="30" y2="56"></line>
+                <line x1="46" y1="46" x2="42" y2="56"></line>
+              </g>
+              <g class="snow">
+                <circle cx="22" cy="50" r="2"></circle>
+                <circle cx="34" cy="54" r="2"></circle>
+                <circle cx="46" cy="50" r="2"></circle>
+              </g>
+              <g class="thunder">
+                <polygon points="30,44 24,58 34,54 30,62 44,46"></polygon>
+              </g>
+            </svg>
+          </div>
+          <div>
+            <div class="weather-temp">
+              {% if data.weather.current_temp_c is not none %}
+                {{ data.weather.current_temp_c }}°C
+              {% else %}
+                --
+              {% endif %}
+            </div>
+            <div class="weather-loc">{{ data.weather.location or "Local" }}</div>
+          </div>
+        </div>
+        <div class="weather-forecast">
+          {% if data.weather.forecast %}
+          {% for item in data.weather.forecast %}
+          <div class="forecast-item">
+            <div class="forecast-date">{{ item.date }}</div>
+            <div class="forecast-icon" data-icon="{{ item.icon }}">
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <circle class="sun" cx="22" cy="22" r="10"></circle>
+                <g class="rays">
+                  <line x1="22" y1="2" x2="22" y2="10"></line>
+                  <line x1="22" y1="34" x2="22" y2="42"></line>
+                  <line x1="2" y1="22" x2="10" y2="22"></line>
+                  <line x1="34" y1="22" x2="42" y2="22"></line>
+                </g>
+                <path class="cloud" d="M42 44H18a10 10 0 0 1 0-20 12 12 0 0 1 23 4 8 8 0 0 1 1 16z"></path>
+                <g class="rain">
+                  <line x1="22" y1="46" x2="18" y2="56"></line>
+                  <line x1="34" y1="46" x2="30" y2="56"></line>
+                  <line x1="46" y1="46" x2="42" y2="56"></line>
+                </g>
+                <g class="snow">
+                  <circle cx="22" cy="50" r="2"></circle>
+                  <circle cx="34" cy="54" r="2"></circle>
+                  <circle cx="46" cy="50" r="2"></circle>
+                </g>
+                <g class="thunder">
+                  <polygon points="30,44 24,58 34,54 30,62 44,46"></polygon>
+                </g>
+              </svg>
+            </div>
+            <div class="forecast-temp">
+              {% if item.high_c is not none %}{{ item.high_c }}°{% endif %}
+              /
+              {% if item.low_c is not none %}{{ item.low_c }}°{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="forecast-empty">No forecast available.</div>
+          {% endif %}
+        </div>
       </section>
       {% endif %}
 
       {% if display.show_news %}
-      <section>
+      <section class="card">
         <h2>News</h2>
-        <ul>
+        <ul class="news-list" data-rotate-minutes="{{ news_refresh_minutes }}">
           {% for item in data.news %}
-          <li>{{ item.title }} - {{ item.source }}</li>
+          <li class="news-item">
+            <span class="news-title">{{ item.title }}</span>
+            <span class="news-source">{{ item.source }}</span>
+          </li>
           {% endfor %}
         </ul>
       </section>
       {% endif %}
 
       {% if display.show_todos %}
-      <section>
+      <section class="card">
         <h2>Todos</h2>
         <ul>
           {% for item in data.todos %}
@@ -47,8 +126,22 @@
       </section>
       {% endif %}
 
+      {% if display.show_emails and data.emails %}
+      <section class="card">
+        <h2>Emails</h2>
+        <ul class="email-list" data-rotate-minutes="{{ email_refresh_minutes }}">
+          {% for item in data.emails %}
+          <li class="email-item">
+            <span class="email-subject">{{ item.subject }}</span>
+            <span class="email-from">{{ item.from }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
       {% if display.show_calendar %}
-      <section>
+      <section class="card">
         <h2>Calendar</h2>
         <ul>
           {% for item in data.calendar %}
@@ -59,7 +152,7 @@
       {% endif %}
 
       {% if display.show_packages %}
-      <section>
+      <section class="card">
         <h2>Packages</h2>
         <ul>
           {% for item in data.packages %}
@@ -70,4 +163,216 @@
       {% endif %}
     </main>
   </body>
+  <script>
+    var rotationTimers = {};
+    var rotationState = {};
+    var validIcons = {
+      clear: true,
+      partly: true,
+      cloudy: true,
+      fog: true,
+      drizzle: true,
+      rain: true,
+      snow: true,
+      thunder: true,
+    };
+
+    function startRotation(selector) {
+      var list = document.querySelector(selector);
+      if (rotationTimers[selector]) {
+        clearInterval(rotationTimers[selector]);
+        rotationTimers[selector] = null;
+      }
+      rotationState[selector] = { index: 0 };
+      if (!list) return;
+      var items = list.querySelectorAll("li");
+      if (!items.length) return;
+      for (var i = 0; i < items.length; i += 1) {
+        items[i].style.display = i === 0 ? "block" : "none";
+      }
+      if (items.length <= 1) return;
+      var minutes = parseInt(list.getAttribute("data-rotate-minutes") || "5", 10) || 5;
+      var interval = Math.max(1, minutes) * 60 * 1000;
+      rotationTimers[selector] = setInterval(function () {
+        var currentList = document.querySelector(selector);
+        if (!currentList) return;
+        var currentItems = currentList.querySelectorAll("li");
+        if (!currentItems.length) return;
+        var state = rotationState[selector] || { index: 0 };
+        var nextIndex = state.index % currentItems.length;
+        for (var i = 0; i < currentItems.length; i += 1) {
+          currentItems[i].style.display = i === nextIndex ? "block" : "none";
+        }
+        state.index = (nextIndex + 1) % currentItems.length;
+        rotationState[selector] = state;
+      }, interval);
+    }
+
+    startRotation(".news-list");
+    startRotation(".email-list");
+
+    function normalizeIcon(icon) {
+      if (!validIcons[icon]) return "cloudy";
+      return icon;
+    }
+
+    function setIconClass(node) {
+      var icon = normalizeIcon(node.getAttribute("data-icon") || "cloudy");
+      node.classList.add("icon-" + icon);
+    }
+
+    var iconNodes = document.querySelectorAll(".forecast-icon, .weather-icon");
+    for (var i = 0; i < iconNodes.length; i += 1) {
+      setIconClass(iconNodes[i]);
+    }
+
+    function handleUnauthorized(response) {
+      if (response.status === 401) {
+        window.location = "/login";
+        return true;
+      }
+      if (response.status === 403) {
+        response
+          .json()
+          .then(function (payload) {
+            if (payload && payload.error === "password_change_required") {
+              window.location = "/settings";
+            }
+          })
+          .catch(function () {});
+        return true;
+      }
+      return false;
+    }
+
+    function getRotateMinutes(selector, fallback) {
+      var list = document.querySelector(selector);
+      if (!list) return fallback;
+      return list.getAttribute("data-rotate-minutes") || fallback;
+    }
+
+    var refreshMinutes = parseInt(getRotateMinutes(".news-list", "5"), 10) || 5;
+    if (document.querySelector(".news-list")) {
+      setInterval(function () {
+        fetch("/api/news")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var list = document.querySelector(".news-list");
+            if (!list || !payload.news) return;
+            list.innerHTML = "";
+            payload.news.forEach(function (item, index) {
+              var li = document.createElement("li");
+              li.className = "news-item";
+              li.style.display = index === 0 ? "block" : "none";
+              var titleSpan = document.createElement("span");
+              titleSpan.className = "news-title";
+              titleSpan.textContent = item.title || "";
+              var sourceSpan = document.createElement("span");
+              sourceSpan.className = "news-source";
+              sourceSpan.textContent = item.source || "";
+              li.appendChild(titleSpan);
+              li.appendChild(sourceSpan);
+              list.appendChild(li);
+            });
+            startRotation(".news-list");
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh news", error);
+          });
+      }, Math.max(1, refreshMinutes) * 60 * 1000);
+    }
+
+    if (document.querySelector(".weather-card")) {
+      setInterval(function () {
+        fetch("/api/weather")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var weather = payload.weather || {};
+            var currentIcon = document.querySelector(".weather-icon");
+            if (currentIcon && weather.current_icon) {
+              currentIcon.className = "weather-icon";
+              currentIcon.setAttribute("data-icon", normalizeIcon(weather.current_icon));
+              setIconClass(currentIcon);
+            }
+            var tempEl = document.querySelector(".weather-temp");
+            if (tempEl && weather.current_temp_c !== undefined && weather.current_temp_c !== null) {
+              tempEl.textContent = weather.current_temp_c + "°C";
+            }
+            var locEl = document.querySelector(".weather-loc");
+            if (locEl && weather.location) {
+              locEl.textContent = weather.location;
+            }
+            var forecastNodes = document.querySelectorAll(".forecast-item");
+            if (weather.forecast && forecastNodes.length) {
+              weather.forecast.forEach(function (item, idx) {
+                var node = forecastNodes[idx];
+                if (!node) return;
+                var iconNode = node.querySelector(".forecast-icon");
+                if (iconNode && item.icon) {
+                  iconNode.className = "forecast-icon";
+                  iconNode.setAttribute("data-icon", normalizeIcon(item.icon));
+                  setIconClass(iconNode);
+                }
+                var tempNode = node.querySelector(".forecast-temp");
+                if (tempNode) {
+                  var high = item.high_c !== undefined && item.high_c !== null ? item.high_c : "--";
+                  var low = item.low_c !== undefined && item.low_c !== null ? item.low_c : "--";
+                  tempNode.textContent = high + "°/" + low + "°";
+                }
+                var dateNode = node.querySelector(".forecast-date");
+                if (dateNode && item.date) {
+                  dateNode.textContent = item.date;
+                }
+              });
+            }
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh weather", error);
+          });
+      }, 15 * 60 * 1000);
+    }
+
+    if (document.querySelector(".email-list")) {
+      var emailRefreshMinutes = parseInt(getRotateMinutes(".email-list", "1"), 10) || 1;
+      setInterval(function () {
+        fetch("/api/emails")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var list = document.querySelector(".email-list");
+            if (!list || !payload.emails) return;
+            list.innerHTML = "";
+            payload.emails.forEach(function (item, index) {
+              var li = document.createElement("li");
+              li.className = "email-item";
+              li.style.display = index === 0 ? "block" : "none";
+              var subjectSpan = document.createElement("span");
+              subjectSpan.className = "email-subject";
+              subjectSpan.textContent = item.subject || "";
+              var fromSpan = document.createElement("span");
+              fromSpan.className = "email-from";
+              fromSpan.textContent = item.from || "";
+              li.appendChild(subjectSpan);
+              li.appendChild(fromSpan);
+              list.appendChild(li);
+            });
+            startRotation(".email-list");
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh emails", error);
+          });
+      }, Math.max(1, emailRefreshMinutes) * 60 * 1000);
+    }
+  </script>
 </html>

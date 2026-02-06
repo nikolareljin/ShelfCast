@@ -93,6 +93,7 @@ dist/
 out/
 target/
 *.egg-info/
+tools/*
 
 # ===================================
 # Test & Coverage

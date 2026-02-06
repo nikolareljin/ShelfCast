@@ -1,7 +1,8 @@
 {
   "auth": {
     "admin_user": "admin",
-    "admin_password": "change-me"
+    "admin_password": "change-me",
+    "require_login_for_display": true
   },
   "data": {
     "data_path": "../data/sample_data.json"
@@ -13,11 +14,27 @@
     "show_calendar": true,
     "show_packages": true
   },
+  "weather": {
+    "use_geolocation": false
+  },
   "news": {
     "predefined_sources": [
       "https://example.com/rss"
     ],
-    "custom_sources": []
+    "custom_sources": [],
+    "refresh_minutes": 5,
+    "latest_limit": 5,
+    "newsapi_key": ""
+  },
+  "email": {
+    "host": "",
+    "port": 993,
+    "user": "",
+    "password": "",
+    "folder": "INBOX",
+    "ssl": true,
+    "require_login_for_display": true,
+    "refresh_minutes": 1
   },
   "calendar": {
     "google": {

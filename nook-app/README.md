@@ -62,7 +62,7 @@ cd ../nook-app
 
 Notes:
 - The repo includes a Gradle wrapper pinned to a compatible version.
-- Use Java 8-11 for the Android build (Android Gradle Plugin 4.2.2 does not support newer JDKs).
+- Use Java 8 for the Android build (Android Gradle Plugin 3.0.1 / Gradle 4.1).
 
 ## Deployment
 
@@ -79,11 +79,11 @@ adb shell am start -n com.shelfcast.nook/.MainActivity
 The Nook connects to Raspberry Pi via USB. ADB port forwarding allows the Nook to access the ShelfCast server:
 
 ```bash
-# On Raspberry Pi - forward port so Nook can reach localhost:8080
-adb reverse tcp:8080 tcp:8080
+# On Raspberry Pi - Android 2.1 does not support adb reverse; use host IP instead
+# Example: http://<host-ip>:8080
 ```
 
-The app then connects to `http://localhost:8080` which routes to the Pi's server.
+The app is configured to connect to `http://<host-ip>:8080`, where `<host-ip>` is the Raspberry Pi's IP address.
 
 ## E-ink Optimization
 

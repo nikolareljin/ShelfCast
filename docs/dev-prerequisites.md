@@ -43,8 +43,8 @@ sudo apt install -y \
     openssh-client \
     rsync
 
-# Install Java (required for Android SDK)
-sudo apt install -y openjdk-11-jdk
+# Install Java (required for Android SDK / legacy Android build)
+sudo apt install -y openjdk-8-jdk openjdk-11-jdk
 
 # Verify Java installation
 java -version
@@ -82,8 +82,8 @@ yes | sdkmanager --licenses
 
 # Install required SDK components
 sdkmanager "platform-tools"
-sdkmanager "platforms;android-28"  # For compilation
-sdkmanager "build-tools;28.0.3"
+sdkmanager "platforms;android-26"  # For compilation
+sdkmanager "build-tools;26.0.2"
 sdkmanager "platforms;android-7"   # Target API for Nook
 
 # Add to shell profile
@@ -100,10 +100,10 @@ cd ../nook-app
 ./gradlew --version
 
 # If you must install Gradle system-wide, use a compatible version:
-# Gradle 6.7.1 - 7.0.2 (Android Gradle Plugin 4.2.2)
+# Gradle 4.1 (Android Gradle Plugin 3.0.1)
 ```
 
-Ensure you are using Java 8 for the Android build (newer JDKs are not supported by the legacy Android Gradle Plugin used for API 7).
+Ensure you are using Java 8 for the Android build (AGP 3.0.1 / Gradle 4.1).
 
 ## 4. ADB Setup
 

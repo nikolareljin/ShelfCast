@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShelfCast</title>
+    <meta http-equiv="refresh" content="60" />
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 14px; margin: 8px; }
+      h1 { display: none; }
+      h2 { font-size: 16px; margin: 10px 0 4px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th, td { border: 0; padding: 4px; vertical-align: top; }
+      .muted { color: #555; font-size: 12px; }
+      .top-right { position: absolute; top: 6px; right: 6px; }
+      img.icon { width: 40px; height: 40px; vertical-align: middle; }
+      ul { padding-left: 16px; margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>ShelfCast</h1>
+    <div class="muted top-right" id="refresh-info">Last refreshed: --</div>
+    <div class="muted">Host IP: {{ ip_address }}</div>
+
+    {% if display.show_weather %}
+    <h2>Weather</h2>
+    <table>
+      <tr>
+        <th>Now</th>
+        <th>Forecast</th>
+      </tr>
+      <tr>
+        <td>
+          <img class="icon" src="{{ url_for('static', filename=icon_asset_filename(data.weather.current_icon)) }}" alt="icon" />
+          {% if data.weather.current_temp_c is not none %}
+            {{ data.weather.current_temp_c }}°C
+          {% else %}
+            --
+          {% endif %}
+          <div class="muted">{{ data.weather.location or "Local" }}</div>
+        </td>
+        <td>
+          <table>
+            <tr>
+              <th>Date</th>
+              <th>Icon</th>
+              <th>High/Low</th>
+            </tr>
+            {% if data.weather.forecast %}
+              {% for item in data.weather.forecast %}
+              <tr>
+                <td>{{ item.date or "--" }}</td>
+                <td>
+                  <img class="icon" src="{{ url_for('static', filename=icon_asset_filename(item.icon)) }}" alt="icon" />
+                </td>
+                <td>
+                  {% if item.high_c is not none %}{{ item.high_c }}°{% else %}--{% endif %}
+                  /
+                  {% if item.low_c is not none %}{{ item.low_c }}°{% else %}--{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>--</td>
+                <td>
+                  <img class="icon" src="{{ url_for('static', filename='icons/cloudy.gif') }}" alt="icon" />
+                </td>
+                <td>--/--</td>
+              </tr>
+            {% endif %}
+          </table>
+        </td>
+      </tr>
+    </table>
+    {% endif %}
+
+    {% if display.show_news %}
+    <h2>News</h2>
+    <table>
+      <tr>
+        <th>Title</th>
+        <th>Source</th>
+      </tr>
+      {% for item in data.news %}
+      <tr>
+        <td>{{ item.title }}</td>
+        <td>{{ item.source }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if display.show_emails and data.emails %}
+    <h2>Emails</h2>
+    <table>
+      <tr>
+        <th>Subject</th>
+        <th>From</th>
+      </tr>
+      {% for item in data.emails %}
+      <tr>
+        <td>{{ item.subject }}</td>
+        <td>{{ item.from }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if display.show_todos %}
+    <h2>Todos</h2>
+    <ul>
+      {% for item in data.todos %}
+      <li>{{ item.title }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if display.show_calendar %}
+    <h2>Calendar</h2>
+    <ul>
+      {% for item in data.calendar %}
+      <li>{{ item.title }} - {{ item.time }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if display.show_packages %}
+    <h2>Packages</h2>
+    <ul>
+      {% for item in data.packages %}
+      <li>{{ item.carrier }} - {{ item.status }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </body>
+  <script type="text/javascript">
+    function updateRefreshInfo() {
+      var now = new Date();
+      var stamp = now.toLocaleString ? now.toLocaleString() : now.toString();
+      var node = document.getElementById("refresh-info");
+      if (node) {
+        node.textContent = "Last refreshed: " + stamp;
+      }
+    }
+    updateRefreshInfo();
+    setTimeout(function () {
+      if (window && window.location) {
+        window.location.reload(true);
+      }
+    }, 60000);
+  </script>
+</html>
