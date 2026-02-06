@@ -231,6 +231,17 @@
         window.location = "/login";
         return true;
       }
+      if (response.status === 403) {
+        response
+          .json()
+          .then(function (payload) {
+            if (payload && payload.error === "password_change_required") {
+              window.location = "/settings";
+            }
+          })
+          .catch(function () {});
+        return true;
+      }
       return false;
     }
 
