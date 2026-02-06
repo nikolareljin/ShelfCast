@@ -67,7 +67,8 @@
         <section>
           <h2>News sources</h2>
           <p class="note">
-            NewsAPI keys are stored in plaintext in the local settings file.
+            NewsAPI keys are encrypted at rest in the local settings file.
+            Encryption uses `SHELFCAST_CREDENTIAL_KEY` (or `SHELFCAST_SECRET_KEY` fallback).
             Set `SHELFCAST_NEWSAPI_KEY` to override the stored key.
           </p>
           <label>
@@ -109,7 +110,8 @@
         <section>
           <h2>Email (IMAP)</h2>
           <p class="note">
-            Credentials are stored in plaintext in the local settings file and are not encrypted.
+            Credentials are encrypted at rest in the local settings file.
+            Encryption uses `SHELFCAST_CREDENTIAL_KEY` (or `SHELFCAST_SECRET_KEY` fallback).
             Set `SHELFCAST_EMAIL_PASSWORD` to override the stored password.
           </p>
           <label>

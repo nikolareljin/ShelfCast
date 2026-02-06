@@ -7,6 +7,8 @@ import threading
 import ipaddress
 import ssl
 import secrets
+import base64
+import hashlib
 from datetime import datetime
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -22,6 +24,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from cryptography.fernet import Fernet, InvalidToken
 
 
 def load_env():
@@ -189,11 +192,68 @@ app.secret_key = env["secret_key"]
 
 def load_settings():
     raw = read_json(env["settings_path"], {})
-    return merge_settings(DEFAULT_SETTINGS, raw)
+    merged = merge_settings(DEFAULT_SETTINGS, raw)
+    return _decrypt_sensitive_settings(merged)
 
 
 def save_settings(settings):
-    write_json(env["settings_path"], settings)
+    write_json(env["settings_path"], _encrypt_sensitive_settings(settings))
+
+
+_ENCRYPTED_PREFIX = "enc:v1:"
+
+
+def _credentials_cipher():
+    material = os.environ.get("SHELFCAST_CREDENTIAL_KEY") or env.get("secret_key", "")
+    if not material:
+        return None
+    key = base64.urlsafe_b64encode(hashlib.sha256(material.encode("utf-8")).digest())
+    return Fernet(key)
+
+
+def _encrypt_secret(value):
+    value = value or ""
+    if not value:
+        return ""
+    if value.startswith(_ENCRYPTED_PREFIX):
+        return value
+    cipher = _credentials_cipher()
+    if cipher is None:
+        return value
+    token = cipher.encrypt(value.encode("utf-8")).decode("utf-8")
+    return f"{_ENCRYPTED_PREFIX}{token}"
+
+
+def _decrypt_secret(value):
+    value = value or ""
+    if not value.startswith(_ENCRYPTED_PREFIX):
+        return value
+    cipher = _credentials_cipher()
+    if cipher is None:
+        return ""
+    token = value[len(_ENCRYPTED_PREFIX) :]
+    try:
+        return cipher.decrypt(token.encode("utf-8")).decode("utf-8")
+    except (InvalidToken, ValueError):
+        return ""
+
+
+def _encrypt_sensitive_settings(settings):
+    payload = json.loads(json.dumps(settings))
+    news = payload.setdefault("news", {})
+    email = payload.setdefault("email", {})
+    news["newsapi_key"] = _encrypt_secret(news.get("newsapi_key", ""))
+    email["password"] = _encrypt_secret(email.get("password", ""))
+    return payload
+
+
+def _decrypt_sensitive_settings(settings):
+    payload = json.loads(json.dumps(settings))
+    news = payload.setdefault("news", {})
+    email = payload.setdefault("email", {})
+    news["newsapi_key"] = _decrypt_secret(news.get("newsapi_key", ""))
+    email["password"] = _decrypt_secret(email.get("password", ""))
+    return payload
 
 
 def is_logged_in(settings):
