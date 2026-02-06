@@ -243,7 +243,7 @@
     var refreshMinutes = parseInt(getRotateMinutes(".news-list", "5"), 10) || 5;
     if (document.querySelector(".news-list")) {
       setInterval(function () {
-        fetch("/api/data")
+        fetch("/api/news")
           .then(function (response) {
             if (handleUnauthorized(response)) return null;
             return response.json();
@@ -268,7 +268,22 @@
               list.appendChild(li);
             });
             startRotation(".news-list");
+          })
+          .catch(function (error) {
+            console.warn("Failed to refresh news", error);
+          });
+      }, Math.max(1, refreshMinutes) * 60 * 1000);
+    }
 
+    if (document.querySelector(".weather-card")) {
+      setInterval(function () {
+        fetch("/api/weather")
+          .then(function (response) {
+            if (handleUnauthorized(response)) return null;
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload) return;
             var weather = payload.weather || {};
             var currentIcon = document.querySelector(".weather-icon");
             if (currentIcon && weather.current_icon) {
@@ -309,15 +324,15 @@
             }
           })
           .catch(function (error) {
-            console.warn("Failed to refresh news", error);
+            console.warn("Failed to refresh weather", error);
           });
-      }, Math.max(1, refreshMinutes) * 60 * 1000);
+      }, 15 * 60 * 1000);
     }
 
     if (document.querySelector(".email-list")) {
       var emailRefreshMinutes = parseInt(getRotateMinutes(".email-list", "1"), 10) || 1;
       setInterval(function () {
-        fetch("/api/data")
+        fetch("/api/emails")
           .then(function (response) {
             if (handleUnauthorized(response)) return null;
             return response.json();

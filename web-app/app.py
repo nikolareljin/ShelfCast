@@ -789,6 +789,17 @@ def _should_include_emails(settings):
         return is_logged_in(settings)
     return True
 
+
+def _build_payload(settings, include_weather=True, include_news=True, include_emails=True):
+    data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
+    if include_weather:
+        data["weather"] = _refresh_weather(settings) or data.get("weather", {})
+    if include_news:
+        data["news"] = _refresh_news(settings)
+    if include_emails:
+        data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
+    return data
+
 @app.route("/")
 def index():
     settings = load_settings()
@@ -796,10 +807,7 @@ def index():
         return redirect(url_for("login"))
     if is_logged_in(settings) and _must_change_default_password(settings):
         return redirect(url_for("settings"))
-    data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
-    data["weather"] = _refresh_weather(settings) or data.get("weather", {})
-    data["news"] = _refresh_news(settings)
-    data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
+    data = _build_payload(settings, include_weather=True, include_news=True, include_emails=True)
     display = settings.get("display", {})
     template_name = "index_legacy.html" if is_legacy_client() else "index.html"
     return render_template(
@@ -820,11 +828,39 @@ def api_data():
         return jsonify({"error": "unauthorized"}), 401
     if is_logged_in(settings) and _must_change_default_password(settings):
         return jsonify({"error": "password_change_required"}), 403
-    data = read_data(settings.get("data", {}).get("data_path", env["data_path"]))
-    data["weather"] = _refresh_weather(settings) or data.get("weather", {})
-    data["news"] = _refresh_news(settings)
-    data["emails"] = _refresh_emails(settings) if _should_include_emails(settings) else []
-    return jsonify(data)
+    return jsonify(_build_payload(settings, include_weather=True, include_news=True, include_emails=True))
+
+
+@app.route("/api/news")
+def api_news():
+    settings = load_settings()
+    if requires_display_login(settings) and not is_logged_in(settings):
+        return jsonify({"error": "unauthorized"}), 401
+    if is_logged_in(settings) and _must_change_default_password(settings):
+        return jsonify({"error": "password_change_required"}), 403
+    return jsonify({"news": _refresh_news(settings)})
+
+
+@app.route("/api/weather")
+def api_weather():
+    settings = load_settings()
+    if requires_display_login(settings) and not is_logged_in(settings):
+        return jsonify({"error": "unauthorized"}), 401
+    if is_logged_in(settings) and _must_change_default_password(settings):
+        return jsonify({"error": "password_change_required"}), 403
+    data = _build_payload(settings, include_weather=True, include_news=False, include_emails=False)
+    return jsonify({"weather": data.get("weather", {})})
+
+
+@app.route("/api/emails")
+def api_emails():
+    settings = load_settings()
+    if requires_display_login(settings) and not is_logged_in(settings):
+        return jsonify({"error": "unauthorized"}), 401
+    if is_logged_in(settings) and _must_change_default_password(settings):
+        return jsonify({"error": "password_change_required"}), 403
+    data = _build_payload(settings, include_weather=False, include_news=False, include_emails=True)
+    return jsonify({"emails": data.get("emails", [])})
 
 
 @app.route("/login", methods=["GET", "POST"])
