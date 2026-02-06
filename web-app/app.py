@@ -355,6 +355,14 @@ def _resolved_ips_safe(hostname):
     return True
 
 
+def _resolved_ip_set(hostname):
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return set()
+    return {info[4][0] for info in infos if info and info[4]}
+
+
 def _is_safe_url(url):
     # Best-effort SSRF guard; DNS can change between validation and request.
     try:
@@ -389,6 +397,9 @@ def _safe_get(url, timeout=8, params=None, headers=None):
     parsed = urlparse(url)
     if not _resolved_ips_safe(parsed.hostname):
         return None
+    initial_ips = _resolved_ip_set(parsed.hostname)
+    if not initial_ips:
+        return None
     expected_url = requests.Request("GET", url, params=params).prepare().url
     try:
         resp = requests.get(
@@ -405,22 +416,28 @@ def _safe_get(url, timeout=8, params=None, headers=None):
         return None
     if not _resolved_ips_safe(final_parsed.hostname):
         return None
+    final_ips = _resolved_ip_set(final_parsed.hostname)
+    if not final_ips:
+        return None
     if not _is_safe_url(resp.url):
         return None
     peer_ip = _response_peer_ip(resp)
-    if peer_ip:
-        try:
-            peer_addr = ipaddress.ip_address(peer_ip)
-        except ValueError:
-            return None
-        if (
-            peer_addr.is_private
-            or peer_addr.is_loopback
-            or peer_addr.is_link_local
-            or peer_addr.is_reserved
-            or peer_addr.is_multicast
-        ):
-            return None
+    if not peer_ip:
+        return None
+    try:
+        peer_addr = ipaddress.ip_address(peer_ip)
+    except ValueError:
+        return None
+    if (
+        peer_addr.is_private
+        or peer_addr.is_loopback
+        or peer_addr.is_link_local
+        or peer_addr.is_reserved
+        or peer_addr.is_multicast
+    ):
+        return None
+    if peer_ip not in initial_ips and peer_ip not in final_ips:
+        return None
     return resp
 
 
