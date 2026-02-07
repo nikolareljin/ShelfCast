@@ -395,39 +395,57 @@ def _response_peer_ip(resp):
     return None
 
 
-def _safe_get(url, timeout=8, params=None, headers=None):
+def _safe_get(url, timeout=8, params=None, headers=None, log_context=None):
+    def _log_safe_get_failure(reason):
+        if not log_context:
+            return
+        try:
+            app.logger.warning("%s fetch blocked/failed: %s (url=%s)", log_context, reason, url)
+        except Exception:
+            pass
+
     # Best-effort SSRF protection: validate before request and block redirects.
     # DNS-based TOCTOU cannot be fully eliminated with requests alone; we mitigate
     # by validating host resolution before and after the request and by checking
     # the connected peer IP when available.
     if not _is_safe_url(url):
+        _log_safe_get_failure("url failed safety validation")
         return None
     parsed = urlparse(url)
     if not _resolved_ips_safe(parsed.hostname):
+        _log_safe_get_failure("hostname resolved to unsafe IP")
         return None
     initial_ips = _resolved_ip_set(parsed.hostname)
     if not initial_ips:
+        _log_safe_get_failure("hostname did not resolve to any IP")
         return None
     expected_url = requests.Request("GET", url, params=params).prepare().url
     try:
         resp = requests.get(
             url, timeout=timeout, allow_redirects=False, params=params, headers=headers
         )
-    except Exception:
+    except Exception as exc:
+        _log_safe_get_failure(f"request exception: {exc}")
         return None
     if resp.is_redirect or resp.is_permanent_redirect:
+        _log_safe_get_failure("redirect response blocked")
         return None
     if resp.url != expected_url:
+        _log_safe_get_failure("response URL mismatch")
         return None
     final_parsed = urlparse(resp.url)
     if final_parsed.hostname != parsed.hostname:
+        _log_safe_get_failure("hostname changed during request")
         return None
     if not _resolved_ips_safe(final_parsed.hostname):
+        _log_safe_get_failure("final hostname resolved to unsafe IP")
         return None
     final_ips = _resolved_ip_set(final_parsed.hostname)
     if not final_ips:
+        _log_safe_get_failure("final hostname did not resolve to any IP")
         return None
     if not _is_safe_url(resp.url):
+        _log_safe_get_failure("final URL failed safety validation")
         return None
     peer_ip = _response_peer_ip(resp)
     # Some adapters/proxies do not expose socket peer details.
@@ -444,8 +462,10 @@ def _safe_get(url, timeout=8, params=None, headers=None):
             or peer_addr.is_reserved
             or peer_addr.is_multicast
         ):
+            _log_safe_get_failure("connected peer IP is non-public")
             return None
         if peer_ip not in initial_ips and peer_ip not in final_ips:
+            _log_safe_get_failure("connected peer IP not in resolved IP set")
             return None
     return resp
 
@@ -726,6 +746,7 @@ def _init_weather_background():
 
 def _fetch_newsapi_items(api_key, limit, settings):
     if not api_key:
+        app.logger.warning("NewsAPI fetch skipped: API key is empty")
         return []
     country = _get_location_country_code(settings) or "us"
     params = {
@@ -734,13 +755,38 @@ def _fetch_newsapi_items(api_key, limit, settings):
     }
     headers = {"X-Api-Key": api_key}
     resp = _safe_get(
-        "https://newsapi.org/v2/top-headlines", params=params, headers=headers, timeout=8
+        "https://newsapi.org/v2/top-headlines",
+        params=params,
+        headers=headers,
+        timeout=8,
+        log_context="newsapi",
     )
-    if not resp or not resp.ok:
+    if not resp:
+        app.logger.warning("NewsAPI fetch failed before HTTP response")
+        return []
+    if not resp.ok:
+        app.logger.warning(
+            "NewsAPI HTTP error: status=%s body=%s",
+            resp.status_code,
+            (resp.text or "").strip().replace("\n", " ")[:200],
+        )
         return []
     try:
         payload = resp.json()
-    except Exception:
+    except Exception as exc:
+        app.logger.warning(
+            "NewsAPI JSON parse failed: %s body=%s",
+            exc,
+            (resp.text or "").strip().replace("\n", " ")[:200],
+        )
+        return []
+    if payload.get("status") not in (None, "ok"):
+        app.logger.warning(
+            "NewsAPI API error payload: status=%s code=%s message=%s",
+            payload.get("status"),
+            payload.get("code", ""),
+            payload.get("message", ""),
+        )
         return []
     items = []
     for article in payload.get("articles", [])[:limit]:
