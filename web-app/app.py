@@ -274,6 +274,9 @@ def _must_change_default_password(settings):
     return bool(session.get("force_password_change")) or _is_default_password(settings)
 
 def is_legacy_client():
+    """
+    Detect legacy clients based on User-Agent header. This is a best-effort approach to identify older devices that may benefit from a simpler version of the interface. The specific tokens checked are "Android 2.1", "Eclair", "Nook", "BNTV", "BNTV250", and "BNRV", which are associated with older Android versions and Nook devices.
+    """
     ua = (request.headers.get("User-Agent") or "").lower()
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
     return any(token in ua for token in legacy_tokens)
@@ -923,6 +926,26 @@ def _build_payload(settings, include_weather=True, include_news=True, include_em
 
 @app.route("/")
 def index():
+    # Add route / with parameter ?type=legacy -> it should render index_legacy.html instead of index.html, to support older clients with simpler HTML/CSS/JS requirements. The legacy version should be used if the User-Agent header contains "Android 2.1", "Eclair", "Nook", "BNTV", "BNTV250", or "BNRV". The non-legacy version should be used for all other clients.
+    legacy_param = request.args.get("type") == "legacy"
+    is_legacy = is_legacy_client() or legacy_param
+
+    if is_legacy:
+        app.logger.info(f"Legacy client detected: User-Agent={request.headers.get('User-Agent', '')}, IP={_client_ip()}")
+    
+    try:
+        request_json = json.dumps({
+            "method": request.method,
+            "url": request.url,
+            "headers": dict(request.headers),
+            "args": dict(request.args),
+            "form": dict(request.form),
+            "remote_addr": request.remote_addr,
+        })
+        app.logger.info(f"Request details: {request_json}")
+    except Exception:
+        pass
+
     settings = load_settings()
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
@@ -930,7 +953,7 @@ def index():
         return redirect(url_for("settings"))
     data = _build_payload(settings, include_weather=True, include_news=True, include_emails=True)
     display = settings.get("display", {})
-    template_name = "index_legacy.html" if is_legacy_client() else "index.html"
+    template_name = "index_legacy.html" if is_legacy else "index.html"
     return render_template(
         template_name,
         data=data,

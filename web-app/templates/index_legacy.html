@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- 
+      Legacy version of the template, with a more compact layout and less styling. 
+      This is used for the "legacy" display mode, which is designed for older devices or those with limited resources. Old Nook Simple Touch is an example of a device that may benefit from this mode.
+     -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ShelfCast</title>
@@ -11,27 +15,29 @@
       h2 { font-size: 16px; margin: 10px 0 4px; }
       table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
       th, td { border: 0; padding: 4px; vertical-align: top; }
-      .date { color: #333; font-size: 18px; }
+      .date { color: #333; font-size: 20px; font-weight: bold; }
       .muted { color: #555; font-size: 12px; }
       .top-right { position: absolute; top: 6px; right: 6px; }
       .top-left { position: absolute; top: 6px; left: 6px; }
+      .top-middle { position: absolute; top: 6px; left: 50%; } /* transform: translateX(-50%); */
       img.icon { width: 40px; height: 40px; vertical-align: middle; }
       ul { padding-left: 16px; margin: 4px 0; }
-      .news_title { font-size: large; font-weight: bold; }
+      .news_title { font-size: 16px; font-weight: 400; }
       .news_source { font-size: 12px; color: #777; }
+      .hidden { display: none; }
     </style>
   </head>
   <body>
     <h1>ShelfCast</h1>
-    <!-- Current date and time - with JavaScript. Refresh every minute -->
-    <div class="date top-left" id="datetime">Date/Time</div>
-    <div class="muted top-right" id="refresh-info">Last refreshed: --</div>
     <div class="muted">Host IP: {{ ip_address }}</div>
-
+    <!-- Current date and time - with JavaScript. Refresh every minute -->
+    <div class="date top-middle" id="datetime">Date/Time</div>
+    <div class="muted top-right" id="refresh-info">Last refreshed: --</div>
+    
     {% if display.show_weather %}
     <!-- <h2>Weather</h2> -->
     <table>
-      <tr>
+      <tr class="hidden">
         <th>Now</th>
         <th>Forecast</th>
       </tr>
@@ -82,7 +88,7 @@
     {% endif %}
 
     {% if display.show_news %}
-    <h2>News</h2>
+    <h2 class="hidden">News</h2>
     <table>
       <tr>
         <th>Title</th>
