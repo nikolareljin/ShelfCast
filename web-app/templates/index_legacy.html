@@ -24,7 +24,7 @@
   <body>
     <h1>ShelfCast</h1>
     <!-- Current date and time - with JavaScript. Refresh every minute -->
-    <div class="date top-left" id="datetime">Time</div>
+    <div class="date top-left" id="datetime">Date/Time</div>
     <div class="muted top-right" id="refresh-info">Last refreshed: --</div>
     <div class="muted">Host IP: {{ ip_address }}</div>
 
@@ -150,7 +150,14 @@
   <script type="text/javascript">
     function updateRefreshInfo() {
       var now = new Date();
-      var stamp = now.toLocaleString ? now.toLocaleString() : now.toString();
+      var options = { 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+      };
+      var stamp = now.toLocaleString ? now.toLocaleString(undefined, options) : now.toString();
       var node = document.getElementById("refresh-info");
       if (node) {
         node.textContent = "Last refreshed: " + stamp;
@@ -165,9 +172,13 @@
     
     function updateDate() {
       var now = new Date();
-      // var options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-      var options = { year: 'numeric', month: '2-digit', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-      var dateString = now.toLocaleDateString(undefined, options);
+      var hours = now.getHours();
+      var minutes = now.getMinutes();
+      var ampm = hours >= 12 ? 'pm' : 'am';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      minutes = minutes < 10 ? '0' + minutes : minutes;
+      var dateString = hours + ':' + minutes + ' ' + ampm;
       var node = document.getElementById("datetime");
       if (node) {
         node.textContent = dateString;

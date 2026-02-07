@@ -115,7 +115,7 @@ DEFAULT_SETTINGS = {
     },
     "system": {
         "static_ip": {"enabled": False, "iface": "eth0", "address": "", "router": "", "dns": ""}
-    },
+    }
 }
 
 
