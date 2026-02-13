@@ -109,3 +109,5 @@ coverage.xml
 # Screenshots (generated on Pi)
 # ===================================
 screenshots/
+
+/ignore/
