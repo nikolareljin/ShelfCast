@@ -13,6 +13,7 @@
       <nav>
         <a href="{{ url_for('settings') }}">Settings</a>
         <a href="{{ url_for('logout') }}">Logout</a>
+        <a href="?type=legacy">Legacy View</a>
       </nav>
     </header>
 
@@ -105,12 +106,19 @@
       <section class="card">
         <h2>News</h2>
         <ul class="news-list" data-rotate-minutes="{{ news_refresh_minutes }}">
+          {% if data.news %}
           {% for item in data.news %}
           <li class="news-item">
             <span class="news-title">{{ item.title }}</span>
             <span class="news-source">{{ item.source }}</span>
           </li>
           {% endfor %}
+          {% else %}
+          <li class="news-item" style="display:block">
+            <span class="news-title">No news available.</span>
+            <span class="news-source">Check feed URLs or NewsAPI key.</span>
+          </li>
+          {% endif %}
         </ul>
       </section>
       {% endif %}

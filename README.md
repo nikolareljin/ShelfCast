@@ -8,12 +8,26 @@ ShelfCast turns a Nook Simple Touch or an old Android tablet/phone into a touch-
 - Pick your access path:
   - Web app with login (recommended)
   - SSH + dialog CLI (alternate)
-- For headless automation, see `docs/03-pi-setup.md`.
+- For headless automation, see [docs/03-pi-setup.md](./docs/03-pi-setup.md).
 - Update dashboard settings at `/settings` after login.
-- Build bundles: `./scripts/build-all.sh`
-- One-command host + Android setup/build/provision: `./scripts/setup-host-and-nook.sh`
-- Deploy to Pi: `./scripts/deploy-pi.sh` (prompts for IP/hostname)
-- Android provisioning: `./scripts/android-provision.sh` (requires APKs in `config/android/apks`)
+- Build bundles: 
+```
+./scripts/build-all.sh
+```
+- One-command host + Android setup/build/provision: 
+```
+./scripts/setup-host-and-nook.sh
+```
+- Deploy to Pi: 
+```
+./scripts/deploy-pi.sh
+``` 
+(prompts for IP/hostname)
+- Android provisioning: 
+```
+./scripts/android-provision.sh
+```
+(requires APKs in `config/android/apks`)
 
 ## Repo layout
 

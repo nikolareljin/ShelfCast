@@ -115,7 +115,7 @@ DEFAULT_SETTINGS = {
     },
     "system": {
         "static_ip": {"enabled": False, "iface": "eth0", "address": "", "router": "", "dns": ""}
-    },
+    }
 }
 
 
@@ -274,6 +274,9 @@ def _must_change_default_password(settings):
     return bool(session.get("force_password_change")) or _is_default_password(settings)
 
 def is_legacy_client():
+    """
+    Detect legacy clients based on User-Agent header. This is a best-effort approach to identify older devices that may benefit from a simpler version of the interface. The specific tokens checked are "Android 2.1", "Eclair", "Nook", "BNTV", "BNTV250", and "BNRV", which are associated with older Android versions and Nook devices.
+    """
     ua = (request.headers.get("User-Agent") or "").lower()
     legacy_tokens = ("android 2.1", "eclair", "nook", "bntv", "bntv250", "bnrv")
     return any(token in ua for token in legacy_tokens)
@@ -392,57 +395,78 @@ def _response_peer_ip(resp):
     return None
 
 
-def _safe_get(url, timeout=8, params=None, headers=None):
+def _safe_get(url, timeout=8, params=None, headers=None, log_context=None):
+    def _log_safe_get_failure(reason):
+        if not log_context:
+            return
+        try:
+            app.logger.warning("%s fetch blocked/failed: %s (url=%s)", log_context, reason, url)
+        except Exception:
+            pass
+
     # Best-effort SSRF protection: validate before request and block redirects.
     # DNS-based TOCTOU cannot be fully eliminated with requests alone; we mitigate
     # by validating host resolution before and after the request and by checking
     # the connected peer IP when available.
     if not _is_safe_url(url):
+        _log_safe_get_failure("url failed safety validation")
         return None
     parsed = urlparse(url)
     if not _resolved_ips_safe(parsed.hostname):
+        _log_safe_get_failure("hostname resolved to unsafe IP")
         return None
     initial_ips = _resolved_ip_set(parsed.hostname)
     if not initial_ips:
+        _log_safe_get_failure("hostname did not resolve to any IP")
         return None
     expected_url = requests.Request("GET", url, params=params).prepare().url
     try:
         resp = requests.get(
             url, timeout=timeout, allow_redirects=False, params=params, headers=headers
         )
-    except Exception:
+    except Exception as exc:
+        _log_safe_get_failure(f"request exception: {exc}")
         return None
     if resp.is_redirect or resp.is_permanent_redirect:
+        _log_safe_get_failure("redirect response blocked")
         return None
     if resp.url != expected_url:
+        _log_safe_get_failure("response URL mismatch")
         return None
     final_parsed = urlparse(resp.url)
     if final_parsed.hostname != parsed.hostname:
+        _log_safe_get_failure("hostname changed during request")
         return None
     if not _resolved_ips_safe(final_parsed.hostname):
+        _log_safe_get_failure("final hostname resolved to unsafe IP")
         return None
     final_ips = _resolved_ip_set(final_parsed.hostname)
     if not final_ips:
+        _log_safe_get_failure("final hostname did not resolve to any IP")
         return None
     if not _is_safe_url(resp.url):
+        _log_safe_get_failure("final URL failed safety validation")
         return None
     peer_ip = _response_peer_ip(resp)
-    if not peer_ip:
-        return None
-    try:
-        peer_addr = ipaddress.ip_address(peer_ip)
-    except ValueError:
-        return None
-    if (
-        peer_addr.is_private
-        or peer_addr.is_loopback
-        or peer_addr.is_link_local
-        or peer_addr.is_reserved
-        or peer_addr.is_multicast
-    ):
-        return None
-    if peer_ip not in initial_ips and peer_ip not in final_ips:
-        return None
+    # Some adapters/proxies do not expose socket peer details.
+    # Keep DNS-based SSRF checks in place and validate peer IP when available.
+    if peer_ip:
+        try:
+            peer_addr = ipaddress.ip_address(peer_ip)
+        except ValueError:
+            return None
+        if (
+            peer_addr.is_private
+            or peer_addr.is_loopback
+            or peer_addr.is_link_local
+            or peer_addr.is_reserved
+            or peer_addr.is_multicast
+        ):
+            _log_safe_get_failure("connected peer IP is non-public")
+            return None
+        if peer_ip not in initial_ips and peer_ip not in final_ips:
+            _log_safe_get_failure("connected peer IP not in resolved IP set")
+            return None
     return resp
 
 
@@ -722,6 +746,7 @@ def _init_weather_background():
 
 def _fetch_newsapi_items(api_key, limit, settings):
     if not api_key:
+        app.logger.warning("NewsAPI fetch skipped: API key is empty")
         return []
     country = _get_location_country_code(settings) or "us"
     params = {
@@ -730,13 +755,38 @@ def _fetch_newsapi_items(api_key, limit, settings):
     }
     headers = {"X-Api-Key": api_key}
     resp = _safe_get(
-        "https://newsapi.org/v2/top-headlines", params=params, headers=headers, timeout=8
+        "https://newsapi.org/v2/top-headlines",
+        params=params,
+        headers=headers,
+        timeout=8,
+        log_context="newsapi",
     )
-    if not resp or not resp.ok:
+    if not resp:
+        app.logger.warning("NewsAPI fetch failed before HTTP response")
+        return []
+    if not resp.ok:
+        app.logger.warning(
+            "NewsAPI HTTP error: status=%s body=%s",
+            resp.status_code,
+            (resp.text or "").strip().replace("\n", " ")[:200],
+        )
         return []
     try:
         payload = resp.json()
-    except Exception:
+    except Exception as exc:
+        app.logger.warning(
+            "NewsAPI JSON parse failed: %s body=%s",
+            exc,
+            (resp.text or "").strip().replace("\n", " ")[:200],
+        )
+        return []
+    if payload.get("status") not in (None, "ok"):
+        app.logger.warning(
+            "NewsAPI API error payload: status=%s code=%s message=%s",
+            payload.get("status"),
+            payload.get("code", ""),
+            payload.get("message", ""),
+        )
         return []
     items = []
     for article in payload.get("articles", [])[:limit]:
@@ -922,6 +972,26 @@ def _build_payload(settings, include_weather=True, include_news=True, include_em
 
 @app.route("/")
 def index():
+    # Add route / with parameter ?type=legacy -> it should render index_legacy.html instead of index.html, to support older clients with simpler HTML/CSS/JS requirements. The legacy version should be used if the User-Agent header contains "Android 2.1", "Eclair", "Nook", "BNTV", "BNTV250", or "BNRV". The non-legacy version should be used for all other clients.
+    legacy_param = request.args.get("type") == "legacy"
+    is_legacy = is_legacy_client() or legacy_param
+
+    if is_legacy:
+        app.logger.info(f"Legacy client detected: User-Agent={request.headers.get('User-Agent', '')}, IP={_client_ip()}")
+    
+    try:
+        request_json = json.dumps({
+            "method": request.method,
+            "url": request.url,
+            "headers": dict(request.headers),
+            "args": dict(request.args),
+            "form": dict(request.form),
+            "remote_addr": request.remote_addr,
+        })
+        app.logger.info(f"Request details: {request_json}")
+    except Exception:
+        pass
+
     settings = load_settings()
     if requires_display_login(settings) and not is_logged_in(settings):
         return redirect(url_for("login"))
@@ -929,7 +999,7 @@ def index():
         return redirect(url_for("settings"))
     data = _build_payload(settings, include_weather=True, include_news=True, include_emails=True)
     display = settings.get("display", {})
-    template_name = "index_legacy.html" if is_legacy_client() else "index.html"
+    template_name = "index_legacy.html" if is_legacy else "index.html"
     return render_template(
         template_name,
         data=data,
