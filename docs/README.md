@@ -1,6 +1,6 @@
 # ShelfCast documentation
 
-Follow these in order:
+## Setup guides (follow in order)
 
 1. `docs/01-overview.md`
 2. `docs/02-hardware.md`
@@ -10,3 +10,10 @@ Follow these in order:
 6. `docs/06-remote-access.md`
 7. `docs/07-ubuntu-test.md`
 8. `docs/08-scripts-ci.md`
+
+## Architecture & platform reference
+
+- `docs/PLATFORM.md` — integration blueprint: deployment tiers, MQTT namespace,
+  device types, VigilantCore integration, screen types, and extension guides
+- `docs/deployment.md` — deployment guide
+- `docs/dev-prerequisites.md` — developer prerequisites
