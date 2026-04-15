@@ -16,14 +16,9 @@ fi
 
 export SHELFCAST_ENV_FILE="$root_dir/config/.env"
 
-require_python_3_10() {
-  if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
-    log_error "ShelfCast web-app requires Python 3.10 or newer. Current version: $(python3 --version 2>&1)"
-    exit 1
-  fi
-}
-
-require_python_3_10
+# shellcheck disable=SC1091
+source "$root_dir/scripts/web-python.sh"
+require_shelfcast_web_python_3_10
 
 if [[ ! -d .venv ]]; then
   log_info "Creating virtualenv"

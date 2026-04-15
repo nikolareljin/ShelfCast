@@ -8,6 +8,7 @@ echo "=== ShelfCast Raspberry Pi Setup ==="
 echo ""
 
 SHELFCAST_DIR="${SHELFCAST_DIR:-/home/pi/ShelfCast}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
 GREEN='\033[0;32m'
@@ -16,14 +17,8 @@ NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-
-require_python_3_10() {
-    if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
-        log_warn "ShelfCast web-app requires Python 3.10 or newer. Current version: $(python3 --version 2>&1)"
-        log_warn "Upgrade the Pi OS to a release that provides Python 3.10+ before continuing."
-        exit 1
-    fi
-}
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/../scripts/web-python.sh"
 
 # Update system
 log_info "Updating system packages..."
@@ -39,7 +34,7 @@ sudo apt install -y \
     git \
     android-tools-adb
 
-require_python_3_10
+require_shelfcast_web_python_3_10
 
 # Set up Python environment
 log_info "Setting up Python environment..."
