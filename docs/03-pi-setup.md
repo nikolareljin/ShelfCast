@@ -3,10 +3,14 @@
 ## OS install
 
 1. Install Raspberry Pi OS Lite on the microSD.
-2. Enable SSH in the imager or add an empty `ssh` file to the boot partition.
-3. Boot the Pi and SSH in.
+2. Use a release that provides `python3 >= 3.10` out of the box.
+3. Enable SSH in the imager or add an empty `ssh` file to the boot partition.
+4. Boot the Pi and SSH in.
 
 ## System packages
+
+ShelfCast's web app now requires Python 3.10 or newer. Older Pi OS releases with Python 3.9
+or earlier are not supported by the current dependency set.
 
 Run from the Pi:
 
