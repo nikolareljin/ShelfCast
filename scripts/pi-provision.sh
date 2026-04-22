@@ -6,10 +6,13 @@ if [[ -z "$repo_source" ]]; then
   echo "Usage: $0 <git-repo-url-or-local-path>"
   exit 1
 fi
-
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/web-python.sh"
 
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip chromium-browser xserver-xorg x11-xserver-utils xinit android-tools-adb
+require_shelfcast_web_python_3_10
 
 if [[ ! -d /home/pi/ShelfCast ]]; then
   if [[ -d "$repo_source/.git" || -d "$repo_source/web-app" ]]; then

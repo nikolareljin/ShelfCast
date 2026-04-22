@@ -16,6 +16,10 @@ fi
 
 export SHELFCAST_ENV_FILE="$root_dir/config/.env"
 
+# shellcheck disable=SC1091
+source "$root_dir/scripts/web-python.sh"
+require_shelfcast_web_python_3_10
+
 if [[ ! -d .venv ]]; then
   log_info "Creating virtualenv"
   python3 -m venv .venv

@@ -19,12 +19,15 @@ Development workflow:
 
 ## Ubuntu System Requirements
 
-- Ubuntu 20.04 LTS or newer (22.04 LTS recommended)
+- Ubuntu 22.04 LTS or newer
 - 8GB RAM minimum (16GB recommended for Android builds)
 - 20GB free disk space
 - Network access to Raspberry Pi
 
 ## 1. Base System Packages
+
+ShelfCast's `web-app/requirements.txt` now depends on packages that require Python 3.10+.
+Use a workstation image that provides `python3 >= 3.10`.
 
 ```bash
 # Update system
@@ -215,7 +218,7 @@ sdkmanager --list      # Should list installed packages
 gradle --version       # Should show Gradle 7.x
 
 # Check Python
-python3 --version      # Should show Python 3.8+
+python3 --version      # Should show Python 3.10+
 
 # Check SSH to Pi
 ssh shelfcast-pi "hostname"  # Should print Pi hostname

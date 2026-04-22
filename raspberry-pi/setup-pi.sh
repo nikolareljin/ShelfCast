@@ -8,6 +8,7 @@ echo "=== ShelfCast Raspberry Pi Setup ==="
 echo ""
 
 SHELFCAST_DIR="${SHELFCAST_DIR:-/home/pi/ShelfCast}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
 GREEN='\033[0;32m'
@@ -16,6 +17,8 @@ NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/../scripts/web-python.sh"
 
 # Update system
 log_info "Updating system packages..."
@@ -30,6 +33,8 @@ sudo apt install -y \
     python3-venv \
     git \
     android-tools-adb
+
+require_shelfcast_web_python_3_10
 
 # Set up Python environment
 log_info "Setting up Python environment..."

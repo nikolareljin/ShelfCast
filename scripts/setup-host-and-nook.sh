@@ -13,6 +13,9 @@ else
   log_error() { echo "[error] $*"; }
 fi
 
+# shellcheck disable=SC1091
+source "$root_dir/scripts/web-python.sh"
+
 log_info "Installing host prerequisites (Ubuntu)"
 "$root_dir/dev-setup/install-prerequisites.sh"
 
@@ -71,6 +74,7 @@ fi
 log_info "Preparing ShelfCast host web app"
 (
   cd "$root_dir/web-app"
+  require_shelfcast_web_python_3_10
   if [[ ! -d .venv ]]; then
     log_info "Creating virtualenv"
     python3 -m venv .venv

@@ -133,7 +133,11 @@ if [[ ! -f web-app/.env ]] && [[ -f config/env.example ]]; then
 fi
 
 # Set up Python venv and install deps
+# shellcheck disable=SC1091
+source "$PI_PATH/scripts/web-python.sh"
+
 cd web-app
+require_shelfcast_web_python_3_10
 if [[ ! -d .venv ]]; then
     python3 -m venv .venv
     echo "Created Python virtual environment"
