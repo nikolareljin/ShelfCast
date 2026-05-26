@@ -16,4 +16,4 @@ If you need a different location, set `SCRIPT_HELPERS_DIR` before running a scri
 
 GitHub Actions are wired to `ci-helpers` reusable workflows. See `.github/workflows/ci.yml`.
 
-If you want to change the workflow or pin a different tag, update the `uses:` line in that file (e.g. `https://github.com/nikolareljin/ci-helpers` at the desired ref).
+If you want to change the workflow or pin a different tag, update the `uses:` line in that file (e.g. `nikolareljin/ci-helpers/.github/workflows/python.yml@production`).
