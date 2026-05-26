@@ -10,7 +10,7 @@ if [[ -f "$SCRIPT_HELPERS_DIR/helpers.sh" ]]; then
   source "$SCRIPT_HELPERS_DIR/helpers.sh"
   shlib_import logging
 else
-  echo "Missing script-helpers at $SCRIPT_HELPERS_DIR. Add git@github.com:nikolareljin/script-helpers.git" >&2
+  echo "Missing script-helpers at $SCRIPT_HELPERS_DIR. Add https://github.com/nikolareljin/script-helpers.git" >&2
   exit 1
 fi
 
