@@ -47,3 +47,11 @@ This repo is a scaffold to get you to a working end-to-end setup quickly. Each m
 ## CI
 
 GitHub Actions use the `ci-helpers` reusable workflow in `.github/workflows/ci.yml`.
+
+---
+
+## Clone traffic
+
+![Clone traffic](https://raw.githubusercontent.com/nikolareljin/stats/main/charts/ShelfCast.svg)
+
+_Updated daily. Total and unique cloners over the last 14 days._
